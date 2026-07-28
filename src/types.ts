@@ -164,7 +164,10 @@ export interface RoomPlayer {
   team: Team;
   characterId: number;
   isReady: boolean;
+  isHost?: boolean;
 }
+
+export type PlayerInfo = RoomPlayer;
 
 export interface RoomState {
   code: string;

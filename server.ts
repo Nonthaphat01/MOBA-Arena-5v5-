@@ -81,14 +81,20 @@ function sanitizeRoomState(room: Room) {
 const wss = new WebSocketServer({ noServer: true });
 
 server.on('upgrade', (request, socket, head) => {
-  const pathname = new URL(request.url || '', `http://${request.headers.host}`).pathname;
-  if (pathname === '/ws') {
-    wss.handleUpgrade(request, socket, head, (ws) => {
-      wss.emit('connection', ws, request);
-    });
-  } else if (process.env.NODE_ENV !== 'production') {
-    // Let Vite handle non-/ws upgrades if needed
-  } else {
+  try {
+    const reqUrl = request.url || '/';
+    const host = request.headers.host || 'localhost:3000';
+    const parsedUrl = new URL(reqUrl, `http://${host}`);
+    if (parsedUrl.pathname === '/ws' || parsedUrl.pathname === '/ws/') {
+      wss.handleUpgrade(request, socket, head, (ws) => {
+        wss.emit('connection', ws, request);
+      });
+    } else if (process.env.NODE_ENV !== 'production') {
+      // Let Vite HMR / internal WebSocket upgrades pass through
+    } else {
+      socket.destroy();
+    }
+  } catch (err) {
     socket.destroy();
   }
 });

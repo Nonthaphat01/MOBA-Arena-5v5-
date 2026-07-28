@@ -1,4 +1,16 @@
-import { RoomState } from '../types';
+import {
+  ref,
+  set,
+  get,
+  update,
+  onValue,
+  onChildAdded,
+  off,
+  onDisconnect,
+  push,
+} from 'firebase/database';
+import { rtdb } from './firebase';
+import { RoomState, PlayerInfo } from '../types';
 
 export type MultiplayerCallback = {
   onRoomCreated?: (room: RoomState, playerId: string, team: 'BLUE' | 'RED') => void;
@@ -13,142 +25,293 @@ export type MultiplayerCallback = {
 };
 
 export class MultiplayerClient {
-  private ws: WebSocket | null = null;
   public playerId: string | null = null;
+  public roomCode: string | null = null;
   public roomState: RoomState | null = null;
   public team: 'BLUE' | 'RED' = 'BLUE';
   public callbacks: MultiplayerCallback = {};
+
+  private roomUnsubscribe: (() => void) | null = null;
+  private statesUnsubscribe: (() => void) | null = null;
+  private eventsUnsubscribe: (() => void) | null = null;
+  private chatUnsubscribe: (() => void) | null = null;
+  private processedEventKeys = new Set<string>();
 
   constructor(callbacks: MultiplayerCallback = {}) {
     this.callbacks = callbacks;
   }
 
-  public connect(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
-        resolve();
+  public async connect(): Promise<void> {
+    // Firebase Realtime Database connects automatically upon reference usage
+    return Promise.resolve();
+  }
+
+  private generateCode(): string {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let code = '';
+    for (let i = 0; i < 4; i++) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return code;
+  }
+
+  public async createRoom(playerName: string, characterId: number) {
+    try {
+      const code = this.generateCode();
+      const playerId = 'p_' + Math.random().toString(36).substr(2, 8);
+
+      this.playerId = playerId;
+      this.roomCode = code;
+      this.team = 'BLUE';
+
+      const playerObj: PlayerInfo = {
+        id: playerId,
+        name: playerName || 'Player 1',
+        team: 'BLUE',
+        characterId,
+        isHost: true,
+        isReady: false,
+      };
+
+      const roomData = {
+        code,
+        status: 'LOBBY',
+        players: {
+          [playerId]: playerObj,
+        },
+      };
+
+      const roomRef = ref(rtdb, `moba_rooms/${code}`);
+      await set(roomRef, roomData);
+
+      // Setup disconnect handler for host
+      const playerRef = ref(rtdb, `moba_rooms/${code}/players/${playerId}`);
+      onDisconnect(playerRef).remove();
+
+      this.listenToRoom(code);
+
+      const initialRoomState: RoomState = {
+        code,
+        status: 'LOBBY',
+        players: [playerObj],
+      };
+      this.roomState = initialRoomState;
+      this.callbacks.onRoomCreated?.(initialRoomState, playerId, 'BLUE');
+    } catch (err: any) {
+      console.error('Create room error:', err);
+      this.callbacks.onError?.('Failed to create room in Firebase Realtime Database.');
+    }
+  }
+
+  public async joinRoom(roomCodeInput: string, playerName: string, characterId: number) {
+    try {
+      const code = roomCodeInput.trim().toUpperCase();
+      if (!code || code.length !== 4) {
+        this.callbacks.onError?.('Please enter a valid 4-character room code.');
         return;
       }
 
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${window.location.host}/ws`;
+      const roomRef = ref(rtdb, `moba_rooms/${code}`);
+      const snapshot = await get(roomRef);
 
-      this.ws = new WebSocket(wsUrl);
+      if (!snapshot.exists()) {
+        this.callbacks.onError?.(`Room "${code}" not found! Please check the code.`);
+        return;
+      }
 
-      this.ws.onopen = () => {
-        console.log('✅ Connected to Multiplayer WebSocket Server');
-        resolve();
+      const rawRoom = snapshot.val();
+      const rawPlayers = rawRoom.players ? Object.values(rawRoom.players) as PlayerInfo[] : [];
+
+      if (rawPlayers.length >= 2) {
+        this.callbacks.onError?.(`Room "${code}" is already full (2/2 players).`);
+        return;
+      }
+
+      const playerId = 'p_' + Math.random().toString(36).substr(2, 8);
+      this.playerId = playerId;
+      this.roomCode = code;
+      this.team = 'RED';
+
+      const playerObj: PlayerInfo = {
+        id: playerId,
+        name: playerName || 'Player 2',
+        team: 'RED',
+        characterId,
+        isHost: false,
+        isReady: false,
       };
 
-      this.ws.onerror = (err) => {
-        console.error('❌ WebSocket Connection Error:', err);
-        if (this.callbacks.onError) {
-          this.callbacks.onError('Failed to connect to multiplayer server.');
+      // Add player to Firebase RTDB
+      const playerRef = ref(rtdb, `moba_rooms/${code}/players/${playerId}`);
+      await set(playerRef, playerObj);
+      onDisconnect(playerRef).remove();
+
+      this.listenToRoom(code);
+
+      const updatedPlayers = [...rawPlayers, playerObj];
+      const joinedRoomState: RoomState = {
+        code,
+        status: rawRoom.status || 'LOBBY',
+        players: updatedPlayers,
+      };
+      this.roomState = joinedRoomState;
+      this.callbacks.onRoomJoined?.(joinedRoomState, playerId, 'RED');
+    } catch (err: any) {
+      console.error('Join room error:', err);
+      this.callbacks.onError?.('Failed to join room via Firebase Realtime Database.');
+    }
+  }
+
+  private listenToRoom(code: string) {
+    this.cleanupListeners();
+
+    // 1. Listen to Room State & Players
+    const roomRef = ref(rtdb, `moba_rooms/${code}`);
+    this.roomUnsubscribe = onValue(roomRef, (snapshot) => {
+      if (!snapshot.exists()) {
+        this.callbacks.onError?.('Room was closed or deleted.');
+        this.callbacks.onDisconnect?.();
+        return;
+      }
+
+      const data = snapshot.val();
+      const playersList: PlayerInfo[] = data.players ? Object.values(data.players) : [];
+
+      const prevStatus = this.roomState?.status;
+      const newStatus = data.status || 'LOBBY';
+
+      const updatedRoomState: RoomState = {
+        code,
+        status: newStatus,
+        players: playersList,
+      };
+
+      this.roomState = updatedRoomState;
+      this.callbacks.onRoomUpdated?.(updatedRoomState);
+
+      // Check for Game Start
+      if (prevStatus === 'LOBBY' && newStatus === 'PLAYING') {
+        this.callbacks.onGameStarting?.(updatedRoomState);
+      }
+
+      // Auto-start when both players are ready (Host handles transition)
+      const myPlayer = playersList.find((p) => p.id === this.playerId);
+      if (myPlayer?.isHost && newStatus === 'LOBBY' && playersList.length === 2 && playersList.every((p) => p.isReady)) {
+        update(ref(rtdb, `moba_rooms/${code}`), { status: 'PLAYING' });
+      }
+    });
+
+    // 2. Listen to Remote Player Positional State Updates
+    const statesRef = ref(rtdb, `moba_rooms/${code}/states`);
+    this.statesUnsubscribe = onValue(statesRef, (snapshot) => {
+      if (!snapshot.exists()) return;
+      const states = snapshot.val();
+      for (const pId in states) {
+        if (pId !== this.playerId) {
+          this.callbacks.onRemotePlayerUpdate?.(pId, states[pId]);
         }
-        reject(err);
-      };
+      }
+    });
 
-      this.ws.onclose = () => {
-        console.log('🔌 WebSocket Disconnected');
-        if (this.callbacks.onDisconnect) {
-          this.callbacks.onDisconnect();
-        }
-      };
+    // 3. Listen to Game Events (Attacks, Damage, Spells)
+    const eventsRef = ref(rtdb, `moba_rooms/${code}/events`);
+    this.eventsUnsubscribe = onChildAdded(eventsRef, (snapshot) => {
+      const key = snapshot.key;
+      if (key && this.processedEventKeys.has(key)) return;
+      if (key) this.processedEventKeys.add(key);
 
-      this.ws.onmessage = (event) => {
-        try {
-          const msg = JSON.parse(event.data);
-          const { type, payload } = msg;
+      const val = snapshot.val();
+      if (val && val.senderId !== this.playerId) {
+        this.callbacks.onRemoteGameEvent?.(val.senderId, val.event);
+      }
+    });
 
-          switch (type) {
-            case 'ROOM_CREATED':
-              this.playerId = payload.playerId;
-              this.team = payload.team;
-              this.roomState = payload.room;
-              this.callbacks.onRoomCreated?.(payload.room, payload.playerId, payload.team);
-              break;
-
-            case 'ROOM_JOINED':
-              this.playerId = payload.playerId;
-              this.team = payload.team;
-              this.roomState = payload.room;
-              this.callbacks.onRoomJoined?.(payload.room, payload.playerId, payload.team);
-              break;
-
-            case 'ROOM_UPDATED':
-              this.roomState = payload.room;
-              this.callbacks.onRoomUpdated?.(payload.room);
-              break;
-
-            case 'GAME_STARTING':
-              this.roomState = payload.room;
-              this.callbacks.onGameStarting?.(payload.room);
-              break;
-
-            case 'REMOTE_PLAYER_UPDATE':
-              this.callbacks.onRemotePlayerUpdate?.(payload.senderId, payload.state);
-              break;
-
-            case 'REMOTE_GAME_EVENT':
-              this.callbacks.onRemoteGameEvent?.(payload.senderId, payload.event);
-              break;
-
-            case 'CHAT_MESSAGE':
-              this.callbacks.onChatMessage?.(payload.senderName, payload.text);
-              break;
-
-            case 'ERROR':
-              this.callbacks.onError?.(payload.message || 'An error occurred.');
-              break;
-
-            default:
-              break;
-          }
-        } catch (e) {
-          console.error('Failed to parse WS message:', e);
-        }
-      };
+    // 4. Listen to Chat
+    const chatRef = ref(rtdb, `moba_rooms/${code}/chat`);
+    this.chatUnsubscribe = onChildAdded(chatRef, (snapshot) => {
+      const val = snapshot.val();
+      if (val) {
+        this.callbacks.onChatMessage?.(val.senderName, val.text);
+      }
     });
   }
 
-  public createRoom(playerName: string, characterId: number) {
-    this.send('CREATE_ROOM', { name: playerName, characterId });
+  public async selectCharacter(characterId: number) {
+    if (!this.roomCode || !this.playerId) return;
+    try {
+      await update(ref(rtdb, `moba_rooms/${this.roomCode}/players/${this.playerId}`), {
+        characterId,
+      });
+    } catch (e) {
+      console.error('Select character error:', e);
+    }
   }
 
-  public joinRoom(roomCode: string, playerName: string, characterId: number) {
-    this.send('JOIN_ROOM', { code: roomCode, name: playerName, characterId });
-  }
-
-  public selectCharacter(characterId: number) {
-    this.send('SELECT_CHARACTER', { characterId });
-  }
-
-  public setReady(isReady: boolean) {
-    this.send('SET_READY', { isReady });
+  public async setReady(isReady: boolean) {
+    if (!this.roomCode || !this.playerId) return;
+    try {
+      await update(ref(rtdb, `moba_rooms/${this.roomCode}/players/${this.playerId}`), {
+        isReady,
+      });
+    } catch (e) {
+      console.error('Set ready error:', e);
+    }
   }
 
   public sendStateUpdate(state: any) {
-    this.send('GAME_STATE_UPDATE', state);
+    if (!this.roomCode || !this.playerId) return;
+    try {
+      set(ref(rtdb, `moba_rooms/${this.roomCode}/states/${this.playerId}`), state);
+    } catch (e) {
+      // Throttle or ignore intermittent errors
+    }
   }
 
   public sendGameEvent(event: any) {
-    this.send('GAME_EVENT', event);
+    if (!this.roomCode || !this.playerId) return;
+    try {
+      const eventsRef = ref(rtdb, `moba_rooms/${this.roomCode}/events`);
+      push(eventsRef, {
+        senderId: this.playerId,
+        event,
+        timestamp: Date.now(),
+      });
+    } catch (e) {
+      console.error('Send event error:', e);
+    }
   }
 
   public sendChatMessage(name: string, text: string) {
-    this.send('CHAT_MESSAGE', { name, text });
+    if (!this.roomCode) return;
+    try {
+      const chatRef = ref(rtdb, `moba_rooms/${this.roomCode}/chat`);
+      push(chatRef, {
+        senderName: name,
+        text,
+        timestamp: Date.now(),
+      });
+    } catch (e) {
+      console.error('Send chat error:', e);
+    }
   }
 
-  private send(type: string, payload: any) {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({ type, payload }));
+  public cleanupListeners() {
+    if (this.roomCode) {
+      if (this.roomUnsubscribe) off(ref(rtdb, `moba_rooms/${this.roomCode}`));
+      if (this.statesUnsubscribe) off(ref(rtdb, `moba_rooms/${this.roomCode}/states`));
+      if (this.eventsUnsubscribe) off(ref(rtdb, `moba_rooms/${this.roomCode}/events`));
+      if (this.chatUnsubscribe) off(ref(rtdb, `moba_rooms/${this.roomCode}/chat`));
     }
+    this.roomUnsubscribe = null;
+    this.statesUnsubscribe = null;
+    this.eventsUnsubscribe = null;
+    this.chatUnsubscribe = null;
   }
 
   public disconnect() {
-    if (this.ws) {
-      this.ws.close();
-      this.ws = null;
-    }
+    this.cleanupListeners();
+    this.roomCode = null;
+    this.playerId = null;
+    this.roomState = null;
   }
 }
