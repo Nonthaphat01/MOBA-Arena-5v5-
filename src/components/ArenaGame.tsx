@@ -138,7 +138,13 @@ export const ArenaGame: React.FC = () => {
           remote.maxHp = state.maxHp;
           remote.mp = state.mp;
           remote.maxMp = state.maxMp;
+          
+          const wasDead = remote.isDead;
           remote.isDead = !!state.isDead;
+          if (remote.isDead && !wasDead && (!remote.respawnTimer || remote.respawnTimer <= 0)) {
+            remote.respawnTimer = 5.0;
+          }
+
           remote.swingTimer = state.swingTimer;
           remote.hitFlashTimer = state.hitFlashTimer;
           remote.stunTimer = state.stunTimer;
@@ -937,9 +943,16 @@ export const ArenaGame: React.FC = () => {
           return;
         }
 
-        // Safety check for local player HP dropping to 0
-        if (entity === player && entity.hp <= 0) {
-          triggerPlayerDeath(entity, 'Enemy');
+        // Safety check for character HP dropping to 0
+        if (entity.hp <= 0 && !entity.isDead) {
+          if (entity === player) {
+            triggerPlayerDeath(entity, 'Enemy');
+          } else {
+            entity.isDead = true;
+            entity.hp = 0;
+            entity.respawnTimer = 5.0;
+            particles.addSparkSplatter(entity.x, entity.y, '#ef4444', 24);
+          }
           return;
         }
 
