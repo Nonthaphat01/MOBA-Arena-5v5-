@@ -68,6 +68,7 @@ export const ArenaGame: React.FC = () => {
 
   const mpClientRef = useRef<MultiplayerClient | null>(null);
   const remotePlayerRef = useRef<CharacterAIContext | null>(null);
+  const triggerDeathRef = useRef<((p: CharacterAIContext, killerName: string) => void) | null>(null);
 
   // Match Stats
   const [stats, setStats] = useState<GameStats>({
@@ -137,7 +138,7 @@ export const ArenaGame: React.FC = () => {
           remote.maxHp = state.maxHp;
           remote.mp = state.mp;
           remote.maxMp = state.maxMp;
-          remote.isDead = state.isDead;
+          remote.isDead = !!state.isDead;
           remote.swingTimer = state.swingTimer;
           remote.hitFlashTimer = state.hitFlashTimer;
           remote.stunTimer = state.stunTimer;
@@ -172,7 +173,39 @@ export const ArenaGame: React.FC = () => {
               event.isCrit
             );
             soundEngine.playImpact(event.isCrit);
+
+            if (player.hp <= 0 && !player.isDead) {
+              triggerDeathRef.current?.(player, event.attackerName || 'Enemy');
+            }
           }
+        } else if (event.type === 'PLAYER_KILLED') {
+          const remote = remotePlayerRef.current;
+          const player = playerRef.current;
+          if (remote) {
+            remote.isDead = true;
+            remote.hp = 0;
+            remote.respawnTimer = 5.0;
+            particleSysRef.current.addSparkSplatter(remote.x, remote.y, '#ef4444', 24);
+          }
+          if (player) {
+            setPlayerKills((k) => k + 1);
+            if (player.team === 'BLUE') {
+              setStats((s) => ({ ...s, blueKills: s.blueKills + 1 }));
+            } else {
+              setStats((s) => ({ ...s, redKills: s.redKills + 1 }));
+            }
+            soundEngine.playAnnounce('Enemy Slain!');
+          }
+          const killMsg: KillFeedEntry = {
+            id: Math.random().toString(),
+            killerName: event.killerName || 'Hero',
+            killerTeam: event.killerTeam || 'BLUE',
+            victimName: event.victimName || 'Enemy',
+            victimTeam: event.victimTeam || 'RED',
+            timestamp: Date.now(),
+            text: `${event.killerName} eliminated ${event.victimName}`,
+          };
+          setKillFeed((kf) => [...kf, killMsg]);
         }
       },
       onError: (msg) => {
@@ -700,6 +733,61 @@ export const ArenaGame: React.FC = () => {
         }
       };
 
+      // Helper function to handle local player death & multiplayer notification
+      const triggerPlayerDeath = (p: CharacterAIContext, killerName: string) => {
+        p.isDead = true;
+        p.hp = 0;
+        p.respawnTimer = 5.0;
+        particles.addSparkSplatter(p.x, p.y, '#ef4444', 24);
+
+        setPlayerDeaths((d) => d + 1);
+        const killerTeam = p.team === 'BLUE' ? 'RED' : 'BLUE';
+        if (killerTeam === 'BLUE') {
+          setStats((s) => ({ ...s, blueKills: s.blueKills + 1 }));
+        } else {
+          setStats((s) => ({ ...s, redKills: s.redKills + 1 }));
+        }
+
+        const killMsg: KillFeedEntry = {
+          id: Math.random().toString(),
+          killerName: killerName,
+          killerTeam: killerTeam,
+          victimName: p.data.name,
+          victimTeam: p.team,
+          timestamp: Date.now(),
+          text: `${killerName} eliminated ${p.data.name}`,
+        };
+        setKillFeed((kf) => [...kf, killMsg]);
+        soundEngine.playAnnounce('You were slain!');
+
+        if (gameMode === 'MULTIPLAYER_1V1') {
+          mpClientRef.current?.sendGameEvent({
+            type: 'PLAYER_KILLED',
+            killerName: killerName,
+            killerTeam: killerTeam,
+            victimName: p.data.name,
+            victimTeam: p.team,
+          });
+
+          mpClientRef.current?.sendStateUpdate({
+            x: p.x,
+            y: p.y,
+            vx: 0,
+            vy: 0,
+            angle: p.angle,
+            hp: 0,
+            maxHp: p.maxHp,
+            mp: p.mp,
+            maxMp: p.maxMp,
+            isDead: true,
+            swingTimer: 0,
+            hitFlashTimer: 0,
+            stunTimer: 0,
+          });
+        }
+      };
+      triggerDeathRef.current = triggerPlayerDeath;
+
       // Helper function to apply damage with knockback and wall slam physics
       const applyDamage = (
         victim: CharacterAIContext,
@@ -724,6 +812,7 @@ export const ArenaGame: React.FC = () => {
             amount: finalDmg,
             hitAngle,
             isCrit,
+            attackerName: attacker.data.name,
           });
         }
 
@@ -752,32 +841,35 @@ export const ArenaGame: React.FC = () => {
 
         // Check Elimination
         if (victim.hp <= 0 && !victim.isDead) {
-          victim.isDead = true;
-          victim.respawnTimer = 5.0;
-          particles.addSparkSplatter(victim.x, victim.y, '#ef4444', 24);
-
-          // Update Score & Kill Feed
-          if (attacker.team === 'BLUE') {
-            setStats((s) => ({ ...s, blueKills: s.blueKills + 1 }));
-            if (attacker === player) setPlayerKills((k) => k + 1);
+          if (victim === player) {
+            triggerPlayerDeath(victim, attacker.data.name);
           } else {
-            setStats((s) => ({ ...s, redKills: s.redKills + 1 }));
-            if (victim === player) setPlayerDeaths((d) => d + 1);
-          }
+            victim.isDead = true;
+            victim.hp = 0;
+            victim.respawnTimer = 5.0;
+            particles.addSparkSplatter(victim.x, victim.y, '#ef4444', 24);
 
-          const killMsg: KillFeedEntry = {
-            id: Math.random().toString(),
-            killerName: attacker.data.name,
-            killerTeam: attacker.team,
-            victimName: victim.data.name,
-            victimTeam: victim.team,
-            timestamp: Date.now(),
-            text: `${attacker.data.name} eliminated ${victim.data.name}`,
-          };
-          setKillFeed((kf) => [...kf, killMsg]);
+            if (attacker.team === 'BLUE') {
+              setStats((s) => ({ ...s, blueKills: s.blueKills + 1 }));
+              if (attacker === player) setPlayerKills((k) => k + 1);
+            } else {
+              setStats((s) => ({ ...s, redKills: s.redKills + 1 }));
+            }
 
-          if (attacker === player) {
-            soundEngine.playAnnounce('Enemy Slain!');
+            const killMsg: KillFeedEntry = {
+              id: Math.random().toString(),
+              killerName: attacker.data.name,
+              killerTeam: attacker.team,
+              victimName: victim.data.name,
+              victimTeam: victim.team,
+              timestamp: Date.now(),
+              text: `${attacker.data.name} eliminated ${victim.data.name}`,
+            };
+            setKillFeed((kf) => [...kf, killMsg]);
+
+            if (attacker === player) {
+              soundEngine.playAnnounce('Enemy Slain!');
+            }
           }
         }
       };
@@ -804,9 +896,50 @@ export const ArenaGame: React.FC = () => {
               particles.addSparkSplatter(entity.x, entity.y, entity.team === 'BLUE' ? '#38bdf8' : '#f87171', 24);
               if (entity === player) {
                 soundEngine.playAnnounce('Respawned!');
+                if (gameMode === 'MULTIPLAYER_1V1') {
+                  mpClientRef.current?.sendStateUpdate({
+                    x: entity.x,
+                    y: entity.y,
+                    vx: 0,
+                    vy: 0,
+                    angle: entity.angle,
+                    hp: entity.maxHp,
+                    maxHp: entity.maxHp,
+                    mp: entity.maxMp,
+                    maxMp: entity.maxMp,
+                    isDead: false,
+                    swingTimer: 0,
+                    hitFlashTimer: 0,
+                    stunTimer: 0,
+                  });
+                }
               }
             }
           }
+
+          if (gameMode === 'MULTIPLAYER_1V1' && entity === player) {
+            mpClientRef.current?.sendStateUpdate({
+              x: entity.x,
+              y: entity.y,
+              vx: 0,
+              vy: 0,
+              angle: entity.angle,
+              hp: 0,
+              maxHp: entity.maxHp,
+              mp: entity.mp,
+              maxMp: entity.maxMp,
+              isDead: true,
+              swingTimer: 0,
+              hitFlashTimer: 0,
+              stunTimer: 0,
+            });
+          }
+          return;
+        }
+
+        // Safety check for local player HP dropping to 0
+        if (entity === player && entity.hp <= 0) {
+          triggerPlayerDeath(entity, 'Enemy');
           return;
         }
 
