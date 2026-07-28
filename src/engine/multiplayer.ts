@@ -56,10 +56,12 @@ export class MultiplayerClient {
     return code;
   }
 
-  public async createRoom(playerName: string, characterId: number) {
+  public async createRoom(playerName: string, characterId: number, roomMode: '1v1' | '2v2' | '3v3' | '4v4' | '5v5' = '1v1') {
     try {
       const code = this.generateCode();
       const playerId = 'p_' + Math.random().toString(36).substr(2, 8);
+
+      const maxPlayersPerTeam = roomMode === '5v5' ? 5 : roomMode === '4v4' ? 4 : roomMode === '3v3' ? 3 : roomMode === '2v2' ? 2 : 1;
 
       this.playerId = playerId;
       this.roomCode = code;
@@ -77,6 +79,8 @@ export class MultiplayerClient {
       const roomData = {
         code,
         status: 'LOBBY',
+        roomMode,
+        maxPlayersPerTeam,
         players: {
           [playerId]: playerObj,
         },
@@ -94,6 +98,8 @@ export class MultiplayerClient {
       const initialRoomState: RoomState = {
         code,
         status: 'LOBBY',
+        roomMode,
+        maxPlayersPerTeam,
         players: [playerObj],
       };
       this.roomState = initialRoomState;
@@ -122,21 +128,26 @@ export class MultiplayerClient {
 
       const rawRoom = snapshot.val();
       const rawPlayers = rawRoom.players ? Object.values(rawRoom.players) as PlayerInfo[] : [];
+      const maxPlayersPerTeam = rawRoom.maxPlayersPerTeam || 1;
+      const totalMaxPlayers = maxPlayersPerTeam * 2;
 
-      if (rawPlayers.length >= 2) {
-        this.callbacks.onError?.(`Room "${code}" is already full (2/2 players).`);
+      if (rawPlayers.length >= totalMaxPlayers) {
+        this.callbacks.onError?.(`Room "${code}" is already full (${rawPlayers.length}/${totalMaxPlayers} players).`);
         return;
       }
+
+      const blueCount = rawPlayers.filter((p) => p.team === 'BLUE').length;
+      const assignedTeam: 'BLUE' | 'RED' = blueCount < maxPlayersPerTeam ? 'BLUE' : 'RED';
 
       const playerId = 'p_' + Math.random().toString(36).substr(2, 8);
       this.playerId = playerId;
       this.roomCode = code;
-      this.team = 'RED';
+      this.team = assignedTeam;
 
       const playerObj: PlayerInfo = {
         id: playerId,
-        name: playerName || 'Player 2',
-        team: 'RED',
+        name: playerName || `Player ${rawPlayers.length + 1}`,
+        team: assignedTeam,
         characterId,
         isHost: false,
         isReady: false,
@@ -153,10 +164,12 @@ export class MultiplayerClient {
       const joinedRoomState: RoomState = {
         code,
         status: rawRoom.status || 'LOBBY',
+        roomMode: rawRoom.roomMode || '1v1',
+        maxPlayersPerTeam,
         players: updatedPlayers,
       };
       this.roomState = joinedRoomState;
-      this.callbacks.onRoomJoined?.(joinedRoomState, playerId, 'RED');
+      this.callbacks.onRoomJoined?.(joinedRoomState, playerId, assignedTeam);
     } catch (err: any) {
       console.error('Join room error:', err);
       this.callbacks.onError?.('Failed to join room via Firebase Realtime Database.');
@@ -184,6 +197,8 @@ export class MultiplayerClient {
       const updatedRoomState: RoomState = {
         code,
         status: newStatus,
+        roomMode: data.roomMode || '1v1',
+        maxPlayersPerTeam: data.maxPlayersPerTeam || 1,
         players: playersList,
       };
 
@@ -195,14 +210,14 @@ export class MultiplayerClient {
         this.callbacks.onGameStarting?.(updatedRoomState);
       }
 
-      // Auto-transition when both players are ready (Host handles transition to SELECTING draft mode)
+      // Auto-transition when players are ready (Host handles transition to SELECTING draft mode)
       const myPlayer = playersList.find((p) => p.id === this.playerId);
-      if (myPlayer?.isHost && newStatus === 'LOBBY' && playersList.length === 2 && playersList.every((p) => p.isReady)) {
+      if (myPlayer?.isHost && newStatus === 'LOBBY' && playersList.length >= 2 && playersList.every((p) => p.isReady)) {
         update(ref(rtdb, `moba_rooms/${code}`), { status: 'SELECTING' });
       }
 
-      // Auto-start game when both players locked in their character during SELECTING draft phase
-      if (myPlayer?.isHost && newStatus === 'SELECTING' && playersList.length === 2 && playersList.every((p) => p.isLockedIn)) {
+      // Auto-start game when players locked in their character during SELECTING draft phase
+      if (myPlayer?.isHost && newStatus === 'SELECTING' && playersList.length >= 2 && playersList.every((p) => p.isLockedIn)) {
         update(ref(rtdb, `moba_rooms/${code}`), { status: 'PLAYING' });
       }
     });
@@ -257,6 +272,8 @@ export class MultiplayerClient {
         roomsList.push({
           code: room.code || code,
           status: room.status || 'LOBBY',
+          roomMode: room.roomMode || '1v1',
+          maxPlayersPerTeam: room.maxPlayersPerTeam || 1,
           players,
         });
       }

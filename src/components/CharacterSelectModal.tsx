@@ -1,6 +1,6 @@
 import React from 'react';
 import { CHARACTERS } from '../data/mapData';
-import { CharacterData, GameMode, RoomState } from '../types';
+import { CharacterData, GameMode, RoomState, RoomSizeMode } from '../types';
 import { Users, Bot, Copy, Check, Swords, Server, Timer, Lock, ArrowLeft, Trash2, LogOut } from 'lucide-react';
 
 interface CharacterSelectModalProps {
@@ -8,6 +8,8 @@ interface CharacterSelectModalProps {
   onSelectChar: (id: number) => void;
   gameMode: GameMode;
   onSelectGameMode: (mode: GameMode) => void;
+  roomSizeMode: RoomSizeMode;
+  onSelectRoomSizeMode: (mode: RoomSizeMode) => void;
   playerName: string;
   onPlayerNameChange: (name: string) => void;
   roomCodeInput: string;
@@ -35,6 +37,8 @@ export const CharacterSelectModal: React.FC<CharacterSelectModalProps> = ({
   onSelectChar,
   gameMode,
   onSelectGameMode,
+  roomSizeMode,
+  onSelectRoomSizeMode,
   playerName,
   onPlayerNameChange,
   roomCodeInput,
@@ -67,6 +71,8 @@ export const CharacterSelectModal: React.FC<CharacterSelectModalProps> = ({
     }
   };
 
+  const roomModesList: RoomSizeMode[] = ['1v1', '2v2', '3v3', '4v4', '5v5'];
+
   return (
     <div className="absolute inset-0 bg-slate-950/95 backdrop-blur-xl z-50 flex flex-col items-center justify-start p-4 sm:p-6 text-slate-100 select-none overflow-y-auto">
       {/* Title */}
@@ -75,7 +81,7 @@ export const CharacterSelectModal: React.FC<CharacterSelectModalProps> = ({
           ARENA MOBA 2D
         </h1>
         <p className="text-xs md:text-sm text-slate-400 mt-1">
-          Online Server Browser • 30s Hero Selection Draft • 2.5D Arena Action
+          Online Multi-Mode Server Browser (1-1, 2-2, 3-3, 4-4, 5-5) • 30s Hero Selection Draft • 2.5D Arena
         </p>
       </div>
 
@@ -91,7 +97,7 @@ export const CharacterSelectModal: React.FC<CharacterSelectModalProps> = ({
             }`}
           >
             <Swords className="w-4 h-4 text-sky-300" />
-            <span>1v1 ONLINE DUEL (NO BOTS)</span>
+            <span>MULTIPLAYER ONLINE (1-1 to 5-5)</span>
           </button>
 
           <button
@@ -121,8 +127,8 @@ export const CharacterSelectModal: React.FC<CharacterSelectModalProps> = ({
           {!roomState ? (
             /* Lobby Entry Controls & Online Servers List */
             <div className="space-y-4">
-              <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-                <div className="flex-1 w-full">
+              <div className="flex flex-col md:flex-row items-end justify-between gap-4 bg-slate-950/60 p-4 rounded-xl border border-slate-800">
+                <div className="w-full md:w-1/3">
                   <label className="block text-xs font-bold text-slate-300 mb-1">PLAYER NAME</label>
                   <input
                     type="text"
@@ -134,32 +140,57 @@ export const CharacterSelectModal: React.FC<CharacterSelectModalProps> = ({
                   />
                 </div>
 
-                <div className="flex items-center gap-3 w-full md:w-auto mt-2 md:mt-5">
+                <div className="w-full md:w-2/3 flex flex-col sm:flex-row items-center gap-3">
+                  {/* Select Room Size Buttons */}
+                  <div className="w-full sm:flex-1">
+                    <label className="block text-[11px] font-extrabold text-amber-400 uppercase mb-1">
+                      SELECT ROOM SIZE (เลือกขนาดห้อง)
+                    </label>
+                    <div className="flex items-center gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800">
+                      {roomModesList.map((mode) => (
+                        <button
+                          key={mode}
+                          type="button"
+                          onClick={() => onSelectRoomSizeMode(mode)}
+                          className={`flex-1 py-1.5 px-1 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                            roomSizeMode === mode
+                              ? 'bg-gradient-to-r from-sky-500 to-indigo-500 text-white shadow-md shadow-sky-500/30 ring-1 ring-sky-300'
+                              : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                          }`}
+                        >
+                          {mode.replace('v', '-')}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   <button
                     onClick={onCreateRoom}
-                    className="flex-1 md:flex-none px-6 py-2.5 bg-sky-600 hover:bg-sky-500 text-white font-extrabold text-xs rounded-xl shadow-lg transition-all cursor-pointer flex items-center justify-center gap-2"
+                    className="w-full sm:w-auto px-5 py-2.5 bg-sky-600 hover:bg-sky-500 text-white font-extrabold text-xs rounded-xl shadow-lg transition-all cursor-pointer flex items-center justify-center gap-2 mt-auto shrink-0"
                   >
                     <Users className="w-4 h-4" />
                     CREATE ROOM
                   </button>
-
-                  <div className="flex items-center gap-2 flex-1 md:flex-none">
-                    <input
-                      type="text"
-                      value={roomCodeInput}
-                      onChange={(e) => onRoomCodeInputChange(e.target.value.toUpperCase())}
-                      placeholder="CODE"
-                      maxLength={4}
-                      className="w-24 bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-center text-sm font-mono font-black text-amber-400 focus:outline-none focus:border-amber-500"
-                    />
-                    <button
-                      onClick={() => onJoinRoom(roomCodeInput)}
-                      className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs rounded-xl shadow-lg transition-all cursor-pointer"
-                    >
-                      JOIN
-                    </button>
-                  </div>
                 </div>
+              </div>
+
+              {/* Direct Code Join Input */}
+              <div className="flex items-center justify-end gap-2 bg-slate-950/40 p-2.5 rounded-xl border border-slate-800/80">
+                <span className="text-xs font-bold text-slate-400">JOIN EXISTING ROOM:</span>
+                <input
+                  type="text"
+                  value={roomCodeInput}
+                  onChange={(e) => onRoomCodeInputChange(e.target.value.toUpperCase())}
+                  placeholder="CODE"
+                  maxLength={4}
+                  className="w-24 bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-center text-sm font-mono font-black text-amber-400 focus:outline-none focus:border-amber-500"
+                />
+                <button
+                  onClick={() => onJoinRoom(roomCodeInput)}
+                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs rounded-xl shadow-lg transition-all cursor-pointer"
+                >
+                  JOIN ROOM
+                </button>
               </div>
 
               {/* ONLINE SERVERS / CREATED ROOMS BROWSER */}
@@ -179,14 +210,16 @@ export const CharacterSelectModal: React.FC<CharacterSelectModalProps> = ({
                 {activeOnlineRooms.length === 0 ? (
                   <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-4 text-center">
                     <p className="text-xs text-slate-400 font-medium">
-                      No active online rooms right now. Click <strong className="text-sky-400">CREATE ROOM</strong> above to host a server!
+                      No active online rooms right now. Select a room size (<strong className="text-sky-400">1-1, 2-2, 3-3, 4-4, 5-5</strong>) and click <strong className="text-sky-400">CREATE ROOM</strong> above to host a server!
                     </p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-60 overflow-y-auto pr-1">
                     {activeOnlineRooms.map((room) => {
                       const host = room.players[0];
-                      const isFull = room.players.length >= 2;
+                      const maxP = (room.maxPlayersPerTeam || 1) * 2;
+                      const isFull = room.players.length >= maxP;
+                      const modeLabel = room.roomMode ? room.roomMode.replace('v', '-') : '1-1';
                       const statusLabel =
                         room.status === 'LOBBY'
                           ? 'LOBBY'
@@ -210,6 +243,9 @@ export const CharacterSelectModal: React.FC<CharacterSelectModalProps> = ({
                               <span className="font-mono font-black text-amber-400 text-sm bg-slate-900 px-2 py-0.5 rounded border border-slate-700">
                                 #{room.code}
                               </span>
+                              <span className="text-[10px] font-black px-2 py-0.5 rounded bg-sky-950 text-sky-300 border border-sky-800">
+                                {modeLabel}
+                              </span>
                               <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded border ${statusColor}`}>
                                 {statusLabel}
                               </span>
@@ -218,7 +254,7 @@ export const CharacterSelectModal: React.FC<CharacterSelectModalProps> = ({
                               Host: {host?.name || 'Player'}
                             </p>
                             <p className="text-[11px] text-slate-400">
-                              Players: {room.players.length}/2 {isFull ? '(FULL)' : ''}
+                              Players: {room.players.length}/{maxP} {isFull ? '(FULL)' : ''}
                             </p>
                           </div>
 
@@ -243,7 +279,7 @@ export const CharacterSelectModal: React.FC<CharacterSelectModalProps> = ({
           ) : roomState.status === 'LOBBY' ? (
             /* Inside Active Room Lobby (Waiting to Start Draft) */
             <div className="space-y-4">
-              {/* Room Code Bar */}
+              {/* Room Code & Info Bar */}
               <div className="flex items-center justify-between bg-slate-950/80 p-3 rounded-xl border border-slate-800">
                 <div className="flex items-center gap-3">
                   <span className="text-xs font-bold text-slate-400">ROOM CODE:</span>
@@ -259,79 +295,135 @@ export const CharacterSelectModal: React.FC<CharacterSelectModalProps> = ({
                   </button>
                 </div>
 
-                <div className="text-xs font-bold text-sky-400 bg-sky-950/80 px-3 py-1 rounded-lg border border-sky-800">
-                  1v1 DUEL LOBBY ({roomState.players.length}/2 PLAYERS)
-                </div>
+                {(() => {
+                  const maxPerTeam = roomState.maxPlayersPerTeam || 1;
+                  const totalMax = maxPerTeam * 2;
+                  const modeTag = roomState.roomMode ? roomState.roomMode.replace('v', '-') : `${maxPerTeam}-${maxPerTeam}`;
+                  return (
+                    <div className="text-xs font-bold text-sky-400 bg-sky-950/80 px-3 py-1 rounded-lg border border-sky-800 uppercase flex items-center gap-2">
+                      <span className="bg-sky-500 text-slate-950 px-2 py-0.5 rounded font-black">{modeTag} MODE</span>
+                      <span>LOBBY ({roomState.players.length}/{totalMax} PLAYERS)</span>
+                    </div>
+                  );
+                })()}
               </div>
 
-              {/* 2 Players Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* Player 1 (Blue) */}
-                {roomState.players[0] ? (
-                  <div className="bg-sky-950/40 border-2 border-sky-500/60 p-3.5 rounded-xl flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-sky-600 flex items-center justify-center font-bold text-lg text-white">
-                        {CHARACTERS.find((c) => c.id === roomState.players[0].characterId)?.avatarIcon || '🛡️'}
-                      </div>
-                      <div>
-                        <div className="font-extrabold text-sm text-sky-300 flex items-center gap-1.5">
-                          <span>{roomState.players[0].name}</span>
-                          <span className="text-[10px] bg-sky-900 text-sky-200 px-1.5 py-0.5 rounded font-mono">BLUE</span>
-                        </div>
-                        <p className="text-xs text-slate-400">
-                          Status: {roomState.players[0].isReady ? 'Ready' : 'Waiting'}
-                        </p>
-                      </div>
-                    </div>
-                    <span
-                      className={`text-xs font-bold px-2.5 py-1 rounded-lg ${
-                        roomState.players[0].isReady
-                          ? 'bg-emerald-950 text-emerald-400 border border-emerald-700'
-                          : 'bg-slate-800 text-slate-400'
-                      }`}
-                    >
-                      {roomState.players[0].isReady ? 'READY' : 'WAITING'}
-                    </span>
-                  </div>
-                ) : (
-                  <div className="bg-slate-950/50 border border-dashed border-slate-700 p-3.5 rounded-xl text-center text-xs text-slate-500 font-bold">
-                    WAITING FOR BLUE PLAYER...
-                  </div>
-                )}
+              {/* Dynamic Teams Grid (Blue vs Red) */}
+              {(() => {
+                const maxPerTeam = roomState.maxPlayersPerTeam || 1;
+                const bluePlayers = roomState.players.filter((p) => p.team === 'BLUE');
+                const redPlayers = roomState.players.filter((p) => p.team === 'RED');
 
-                {/* Player 2 (Red) */}
-                {roomState.players[1] ? (
-                  <div className="bg-red-950/40 border-2 border-red-500/60 p-3.5 rounded-xl flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-red-600 flex items-center justify-center font-bold text-lg text-white">
-                        {CHARACTERS.find((c) => c.id === roomState.players[1].characterId)?.avatarIcon || '⚔️'}
+                return (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* BLUE TEAM COLUMN */}
+                    <div className="bg-sky-950/20 border border-sky-600/30 rounded-xl p-3 space-y-2">
+                      <div className="flex items-center justify-between border-b border-sky-600/30 pb-2 mb-2">
+                        <span className="font-black text-xs text-sky-400 uppercase tracking-wider flex items-center gap-1.5">
+                          <span className="w-2.5 h-2.5 rounded-full bg-sky-500 inline-block" />
+                          BLUE TEAM ({bluePlayers.length}/{maxPerTeam})
+                        </span>
                       </div>
-                      <div>
-                        <div className="font-extrabold text-sm text-red-300 flex items-center gap-1.5">
-                          <span>{roomState.players[1].name}</span>
-                          <span className="text-[10px] bg-red-900 text-red-200 px-1.5 py-0.5 rounded font-mono">RED</span>
-                        </div>
-                        <p className="text-xs text-slate-400">
-                          Status: {roomState.players[1].isReady ? 'Ready' : 'Waiting'}
-                        </p>
-                      </div>
+
+                      {Array.from({ length: maxPerTeam }).map((_, idx) => {
+                        const player = bluePlayers[idx];
+                        if (player) {
+                          const char = CHARACTERS.find((c) => c.id === player.characterId) || CHARACTERS[0];
+                          return (
+                            <div
+                              key={player.id}
+                              className="bg-sky-950/60 border border-sky-500/50 p-2.5 rounded-xl flex items-center justify-between"
+                            >
+                              <div className="flex items-center gap-2.5">
+                                <div className="w-8 h-8 rounded-full bg-sky-600 flex items-center justify-center font-bold text-sm text-white shrink-0">
+                                  {char.avatarIcon}
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="font-extrabold text-xs text-sky-300 truncate">
+                                    {player.name} {player.id === myPlayerId ? '(YOU)' : ''}
+                                  </div>
+                                  <span className="text-[10px] text-slate-400 font-bold">{char.name}</span>
+                                </div>
+                              </div>
+                              <span
+                                className={`text-[10px] font-extrabold px-2 py-0.5 rounded ${
+                                  player.isReady
+                                    ? 'bg-emerald-950 text-emerald-400 border border-emerald-700'
+                                    : 'bg-slate-800 text-slate-400'
+                                }`}
+                              >
+                                {player.isReady ? 'READY' : 'WAITING'}
+                              </span>
+                            </div>
+                          );
+                        } else {
+                          return (
+                            <div
+                              key={`empty_blue_${idx}`}
+                              className="bg-slate-950/40 border border-dashed border-slate-800 p-2.5 rounded-xl text-center text-[11px] text-slate-500 font-bold"
+                            >
+                              WAITING FOR BLUE PLAYER ({idx + 1}/{maxPerTeam})...
+                            </div>
+                          );
+                        }
+                      })}
                     </div>
-                    <span
-                      className={`text-xs font-bold px-2.5 py-1 rounded-lg ${
-                        roomState.players[1].isReady
-                          ? 'bg-emerald-950 text-emerald-400 border border-emerald-700'
-                          : 'bg-slate-800 text-slate-400'
-                      }`}
-                    >
-                      {roomState.players[1].isReady ? 'READY' : 'WAITING'}
-                    </span>
+
+                    {/* RED TEAM COLUMN */}
+                    <div className="bg-red-950/20 border border-red-600/30 rounded-xl p-3 space-y-2">
+                      <div className="flex items-center justify-between border-b border-red-600/30 pb-2 mb-2">
+                        <span className="font-black text-xs text-red-400 uppercase tracking-wider flex items-center gap-1.5">
+                          <span className="w-2.5 h-2.5 rounded-full bg-red-500 inline-block" />
+                          RED TEAM ({redPlayers.length}/{maxPerTeam})
+                        </span>
+                      </div>
+
+                      {Array.from({ length: maxPerTeam }).map((_, idx) => {
+                        const player = redPlayers[idx];
+                        if (player) {
+                          const char = CHARACTERS.find((c) => c.id === player.characterId) || CHARACTERS[0];
+                          return (
+                            <div
+                              key={player.id}
+                              className="bg-red-950/60 border border-red-500/50 p-2.5 rounded-xl flex items-center justify-between"
+                            >
+                              <div className="flex items-center gap-2.5">
+                                <div className="w-8 h-8 rounded-full bg-red-600 flex items-center justify-center font-bold text-sm text-white shrink-0">
+                                  {char.avatarIcon}
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="font-extrabold text-xs text-red-300 truncate">
+                                    {player.name} {player.id === myPlayerId ? '(YOU)' : ''}
+                                  </div>
+                                  <span className="text-[10px] text-slate-400 font-bold">{char.name}</span>
+                                </div>
+                              </div>
+                              <span
+                                className={`text-[10px] font-extrabold px-2 py-0.5 rounded ${
+                                  player.isReady
+                                    ? 'bg-emerald-950 text-emerald-400 border border-emerald-700'
+                                    : 'bg-slate-800 text-slate-400'
+                                }`}
+                              >
+                                {player.isReady ? 'READY' : 'WAITING'}
+                              </span>
+                            </div>
+                          );
+                        } else {
+                          return (
+                            <div
+                              key={`empty_red_${idx}`}
+                              className="bg-slate-950/40 border border-dashed border-slate-800 p-2.5 rounded-xl text-center text-[11px] text-slate-500 font-bold"
+                            >
+                              WAITING FOR RED PLAYER ({idx + 1}/{maxPerTeam})...
+                            </div>
+                          );
+                        }
+                      })}
+                    </div>
                   </div>
-                ) : (
-                  <div className="bg-slate-950/50 border border-dashed border-slate-700 p-3.5 rounded-xl text-center text-xs text-slate-500 font-bold flex items-center justify-center gap-2">
-                    <span>WAITING FOR OPPONENT TO JOIN WITH CODE ({roomState.code})</span>
-                  </div>
-                )}
-              </div>
+                );
+              })()}
 
               {/* Lobby Action Bar: Back / Delete Room & Ready Buttons */}
               <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-slate-800/80">
@@ -351,7 +443,7 @@ export const CharacterSelectModal: React.FC<CharacterSelectModalProps> = ({
                       : 'bg-amber-500 hover:bg-amber-400 text-slate-950'
                   }`}
                 >
-                  {isReady ? '✓ READY! (WAITING FOR OPPONENT)' : 'READY UP FOR 30s HERO DRAFT'}
+                  {isReady ? '✓ READY! (WAITING FOR PLAYERS)' : 'READY UP FOR 30s HERO DRAFT'}
                 </button>
               </div>
             </div>

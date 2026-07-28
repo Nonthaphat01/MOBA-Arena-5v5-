@@ -158,6 +158,8 @@ export interface GameStats {
 
 export type GameMode = 'PRACTICE_5V5' | 'MULTIPLAYER_1V1';
 
+export type RoomSizeMode = '1v1' | '2v2' | '3v3' | '4v4' | '5v5';
+
 export interface RoomPlayer {
   id: string;
   name: string;
@@ -173,6 +175,8 @@ export type PlayerInfo = RoomPlayer;
 export interface RoomState {
   code: string;
   status: 'LOBBY' | 'SELECTING' | 'PLAYING';
+  roomMode?: RoomSizeMode;
+  maxPlayersPerTeam?: number;
   players: RoomPlayer[];
 }
 

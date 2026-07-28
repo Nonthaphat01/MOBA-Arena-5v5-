@@ -34,6 +34,7 @@ import {
   KillFeedEntry,
   LightSource,
   RoomState,
+  RoomSizeMode,
   SpeedPad,
   Wall,
   WaterZone,
@@ -60,6 +61,7 @@ export const ArenaGame: React.FC = () => {
 
   // Multiplayer & Room States
   const [gameMode, setGameMode] = useState<GameMode>('MULTIPLAYER_1V1');
+  const [roomSizeMode, setRoomSizeMode] = useState<RoomSizeMode>('1v1');
   const [playerName, setPlayerName] = useState<string>('Hero');
   const [roomCodeInput, setRoomCodeInput] = useState<string>('');
   const [roomState, setRoomState] = useState<RoomState | null>(null);
@@ -277,7 +279,7 @@ export const ArenaGame: React.FC = () => {
 
   const handleCreateRoom = () => {
     if (mpClientRef.current) {
-      mpClientRef.current.createRoom(playerName || 'Player 1', selectedCharId);
+      mpClientRef.current.createRoom(playerName || 'Player 1', selectedCharId, roomSizeMode);
     }
   };
 
@@ -365,99 +367,106 @@ export const ArenaGame: React.FC = () => {
 
     const newEntities: CharacterAIContext[] = [];
 
-    if (gameMode === 'MULTIPLAYER_1V1' && currentRoom && currentRoom.players.length === 2) {
-      // --- 1v1 Online Mode (NO BOTS) ---
-      const myPlayerInfo = currentRoom.players.find((p) => p.id === mpClientRef.current?.playerId);
-      const opponentInfo = currentRoom.players.find((p) => p.id !== mpClientRef.current?.playerId);
+    if (gameMode === 'MULTIPLAYER_1V1' && currentRoom && currentRoom.players.length >= 1) {
+      // --- Online Multiplayer Match (1v1, 2v2, 3v3, 4v4, 5v5) ---
+      const bluePlayers = currentRoom.players.filter((p) => p.team === 'BLUE');
+      const redPlayers = currentRoom.players.filter((p) => p.team === 'RED');
 
-      const myTeam = myPlayerInfo?.team || 'BLUE';
-      const myCharData = CHARACTERS.find((c) => c.id === (myPlayerInfo?.characterId ?? selectedCharId)) || CHARACTERS[0];
-      const mySpawnX = myTeam === 'BLUE' ? 220 : MAP_WIDTH - 220;
-      const mySpawnY = MAP_HEIGHT / 2;
+      // Create Blue Team Entities
+      bluePlayers.forEach((p, idx) => {
+        const spawnX = 220;
+        const spawnY = (MAP_HEIGHT / (bluePlayers.length + 1)) * (idx + 1);
+        const charData = CHARACTERS.find((c) => c.id === p.characterId) || CHARACTERS[0];
 
-      const playerEntity: CharacterAIContext = {
-        x: mySpawnX,
-        y: mySpawnY,
-        spawnX: mySpawnX,
-        spawnY: mySpawnY,
-        respawnTimer: 0,
-        vx: 0,
-        vy: 0,
-        angle: myTeam === 'BLUE' ? 0 : Math.PI,
-        targetAngle: myTeam === 'BLUE' ? 0 : Math.PI,
-        impulseX: 0,
-        impulseY: 0,
-        walkCycle: 0,
-        swingTimer: 0,
-        swingDuration: 0.22,
-        swingStartAngle: 0,
-        hitFlashTimer: 0,
-        hp: 100 + myCharData.str * 2,
-        maxHp: 100 + myCharData.str * 2,
-        mp: myCharData.int * 2,
-        maxMp: myCharData.int * 2,
-        team: myTeam,
-        data: myCharData,
-        bStr: 0,
-        bAgi: 0,
-        bInt: 0,
-        isDead: false,
-        atkCooldown: 0,
-        skillCDs: [0, 0, 0],
-        speedBuffTimer: 0,
-        stunTimer: 0,
-        radius: 18,
-      };
+        const entity: CharacterAIContext = {
+          x: spawnX,
+          y: spawnY,
+          spawnX,
+          spawnY,
+          respawnTimer: 0,
+          vx: 0,
+          vy: 0,
+          angle: 0,
+          targetAngle: 0,
+          impulseX: 0,
+          impulseY: 0,
+          walkCycle: 0,
+          swingTimer: 0,
+          swingDuration: 0.22,
+          swingStartAngle: 0,
+          hitFlashTimer: 0,
+          hp: 100 + charData.str * 2,
+          maxHp: 100 + charData.str * 2,
+          mp: charData.int * 2,
+          maxMp: charData.int * 2,
+          team: 'BLUE',
+          data: charData,
+          bStr: 0,
+          bAgi: 0,
+          bInt: 0,
+          isDead: false,
+          atkCooldown: 0,
+          skillCDs: [0, 0, 0],
+          speedBuffTimer: 0,
+          stunTimer: 0,
+          radius: 18,
+        };
 
-      const oppTeam = myTeam === 'BLUE' ? 'RED' : 'BLUE';
-      const oppCharData = CHARACTERS.find((c) => c.id === (opponentInfo?.characterId ?? 1)) || CHARACTERS[1];
-      const oppSpawnX = oppTeam === 'BLUE' ? 220 : MAP_WIDTH - 220;
-      const oppSpawnY = MAP_HEIGHT / 2;
+        newEntities.push(entity);
+        if (p.id === mpClientRef.current?.playerId) {
+          playerRef.current = entity;
+        } else if (!remotePlayerRef.current) {
+          remotePlayerRef.current = entity;
+        }
+      });
 
-      const remoteEntity: CharacterAIContext = {
-        x: oppSpawnX,
-        y: oppSpawnY,
-        spawnX: oppSpawnX,
-        spawnY: oppSpawnY,
-        respawnTimer: 0,
-        vx: 0,
-        vy: 0,
-        angle: oppTeam === 'BLUE' ? 0 : Math.PI,
-        targetAngle: oppTeam === 'BLUE' ? 0 : Math.PI,
-        impulseX: 0,
-        impulseY: 0,
-        walkCycle: 0,
-        swingTimer: 0,
-        swingDuration: 0.22,
-        swingStartAngle: 0,
-        hitFlashTimer: 0,
-        hp: 100 + oppCharData.str * 2,
-        maxHp: 100 + oppCharData.str * 2,
-        mp: oppCharData.int * 2,
-        maxMp: oppCharData.int * 2,
-        team: oppTeam,
-        data: oppCharData,
-        bStr: 0,
-        bAgi: 0,
-        bInt: 0,
-        isDead: false,
-        atkCooldown: 0,
-        skillCDs: [0, 0, 0],
-        speedBuffTimer: 0,
-        stunTimer: 0,
-        radius: 18,
-      };
+      // Create Red Team Entities
+      redPlayers.forEach((p, idx) => {
+        const spawnX = MAP_WIDTH - 220;
+        const spawnY = (MAP_HEIGHT / (redPlayers.length + 1)) * (idx + 1);
+        const charData = CHARACTERS.find((c) => c.id === p.characterId) || CHARACTERS[1];
 
-      if (myTeam === 'BLUE') {
-        newEntities.push(playerEntity);
-        newEntities.push(remoteEntity);
-      } else {
-        newEntities.push(remoteEntity);
-        newEntities.push(playerEntity);
-      }
+        const entity: CharacterAIContext = {
+          x: spawnX,
+          y: spawnY,
+          spawnX,
+          spawnY,
+          respawnTimer: 0,
+          vx: 0,
+          vy: 0,
+          angle: Math.PI,
+          targetAngle: Math.PI,
+          impulseX: 0,
+          impulseY: 0,
+          walkCycle: 0,
+          swingTimer: 0,
+          swingDuration: 0.22,
+          swingStartAngle: 0,
+          hitFlashTimer: 0,
+          hp: 100 + charData.str * 2,
+          maxHp: 100 + charData.str * 2,
+          mp: charData.int * 2,
+          maxMp: charData.int * 2,
+          team: 'RED',
+          data: charData,
+          bStr: 0,
+          bAgi: 0,
+          bInt: 0,
+          isDead: false,
+          atkCooldown: 0,
+          skillCDs: [0, 0, 0],
+          speedBuffTimer: 0,
+          stunTimer: 0,
+          radius: 18,
+        };
 
-      playerRef.current = playerEntity;
-      remotePlayerRef.current = remoteEntity;
+        newEntities.push(entity);
+        if (p.id === mpClientRef.current?.playerId) {
+          playerRef.current = entity;
+        } else if (!remotePlayerRef.current) {
+          remotePlayerRef.current = entity;
+        }
+      });
     } else {
       // --- 5v5 Practice Mode (AI BOTS) ---
       const playerCharData = CHARACTERS.find((c) => c.id === selectedCharId) || CHARACTERS[0];
@@ -2209,6 +2218,8 @@ export const ArenaGame: React.FC = () => {
               setGameMode(mode);
               setIsDrafting5v5(false);
             }}
+            roomSizeMode={roomSizeMode}
+            onSelectRoomSizeMode={setRoomSizeMode}
             playerName={playerName}
             onPlayerNameChange={setPlayerName}
             roomCodeInput={roomCodeInput}
