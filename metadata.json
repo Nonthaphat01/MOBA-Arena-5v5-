@@ -1,0 +1,6 @@
+{
+  "name": "2D MOBA Arena 5v5",
+  "description": "An advanced 2D MOBA arena game featuring 1v1 Real-Time Multiplayer Online Duels (No Bots) & 5v5 Practice AI mode, dynamic lighting and shadows, smart tactical AI, interactive map environment, procedural Web Audio SFX, and fluid combat.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
