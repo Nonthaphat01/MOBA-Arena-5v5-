@@ -8,6 +8,7 @@ import {
   off,
   onDisconnect,
   push,
+  remove,
 } from 'firebase/database';
 import { rtdb } from './firebase';
 import { RoomState, PlayerInfo } from '../types';
@@ -190,13 +191,18 @@ export class MultiplayerClient {
       this.callbacks.onRoomUpdated?.(updatedRoomState);
 
       // Check for Game Start
-      if (prevStatus === 'LOBBY' && newStatus === 'PLAYING') {
+      if (prevStatus !== 'PLAYING' && newStatus === 'PLAYING') {
         this.callbacks.onGameStarting?.(updatedRoomState);
       }
 
-      // Auto-start when both players are ready (Host handles transition)
+      // Auto-transition when both players are ready (Host handles transition to SELECTING draft mode)
       const myPlayer = playersList.find((p) => p.id === this.playerId);
       if (myPlayer?.isHost && newStatus === 'LOBBY' && playersList.length === 2 && playersList.every((p) => p.isReady)) {
+        update(ref(rtdb, `moba_rooms/${code}`), { status: 'SELECTING' });
+      }
+
+      // Auto-start game when both players locked in their character during SELECTING draft phase
+      if (myPlayer?.isHost && newStatus === 'SELECTING' && playersList.length === 2 && playersList.every((p) => p.isLockedIn)) {
         update(ref(rtdb, `moba_rooms/${code}`), { status: 'PLAYING' });
       }
     });
@@ -236,6 +242,29 @@ export class MultiplayerClient {
     });
   }
 
+  public static listenToActiveRooms(callback: (rooms: RoomState[]) => void): () => void {
+    const roomsRef = ref(rtdb, 'moba_rooms');
+    const unsubscribe = onValue(roomsRef, (snapshot) => {
+      if (!snapshot.exists()) {
+        callback([]);
+        return;
+      }
+      const val = snapshot.val();
+      const roomsList: RoomState[] = [];
+      for (const code in val) {
+        const room = val[code];
+        const players = room.players ? (Object.values(room.players) as PlayerInfo[]) : [];
+        roomsList.push({
+          code: room.code || code,
+          status: room.status || 'LOBBY',
+          players,
+        });
+      }
+      callback(roomsList);
+    });
+    return () => off(roomsRef);
+  }
+
   public async selectCharacter(characterId: number) {
     if (!this.roomCode || !this.playerId) return;
     try {
@@ -255,6 +284,28 @@ export class MultiplayerClient {
       });
     } catch (e) {
       console.error('Set ready error:', e);
+    }
+  }
+
+  public async setLockedIn(isLockedIn: boolean) {
+    if (!this.roomCode || !this.playerId) return;
+    try {
+      await update(ref(rtdb, `moba_rooms/${this.roomCode}/players/${this.playerId}`), {
+        isLockedIn,
+      });
+    } catch (e) {
+      console.error('Set locked in error:', e);
+    }
+  }
+
+  public async setRoomStatus(status: 'LOBBY' | 'SELECTING' | 'PLAYING') {
+    if (!this.roomCode) return;
+    try {
+      await update(ref(rtdb, `moba_rooms/${this.roomCode}`), {
+        status,
+      });
+    } catch (e) {
+      console.error('Set room status error:', e);
     }
   }
 
@@ -292,6 +343,42 @@ export class MultiplayerClient {
       });
     } catch (e) {
       console.error('Send chat error:', e);
+    }
+  }
+
+  public async leaveRoom() {
+    if (!this.roomCode || !this.playerId) return;
+    const code = this.roomCode;
+    const pId = this.playerId;
+    this.cleanupListeners();
+    this.roomCode = null;
+    this.playerId = null;
+    this.roomState = null;
+    try {
+      await remove(ref(rtdb, `moba_rooms/${code}/players/${pId}`));
+      const roomSnap = await get(ref(rtdb, `moba_rooms/${code}`));
+      if (roomSnap.exists()) {
+        const val = roomSnap.val();
+        if (!val.players || Object.keys(val.players).length === 0) {
+          await remove(ref(rtdb, `moba_rooms/${code}`));
+        }
+      }
+    } catch (e) {
+      console.error('Leave room error:', e);
+    }
+  }
+
+  public async deleteRoom() {
+    if (!this.roomCode) return;
+    const code = this.roomCode;
+    this.cleanupListeners();
+    this.roomCode = null;
+    this.playerId = null;
+    this.roomState = null;
+    try {
+      await remove(ref(rtdb, `moba_rooms/${code}`));
+    } catch (e) {
+      console.error('Delete room error:', e);
     }
   }
 

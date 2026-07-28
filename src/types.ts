@@ -164,6 +164,7 @@ export interface RoomPlayer {
   team: Team;
   characterId: number;
   isReady: boolean;
+  isLockedIn?: boolean;
   isHost?: boolean;
 }
 
@@ -171,7 +172,7 @@ export type PlayerInfo = RoomPlayer;
 
 export interface RoomState {
   code: string;
-  status: 'LOBBY' | 'PLAYING';
+  status: 'LOBBY' | 'SELECTING' | 'PLAYING';
   players: RoomPlayer[];
 }
 

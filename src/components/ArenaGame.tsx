@@ -63,8 +63,14 @@ export const ArenaGame: React.FC = () => {
   const [playerName, setPlayerName] = useState<string>('Hero');
   const [roomCodeInput, setRoomCodeInput] = useState<string>('');
   const [roomState, setRoomState] = useState<RoomState | null>(null);
+  const [activeOnlineRooms, setActiveOnlineRooms] = useState<RoomState[]>([]);
   const [isReady, setIsReady] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // 30s Hero Draft States
+  const [isDrafting5v5, setIsDrafting5v5] = useState<boolean>(false);
+  const [draftTimer, setDraftTimer] = useState<number>(30);
+  const [isLockedIn, setIsLockedIn] = useState<boolean>(false);
 
   const mpClientRef = useRef<MultiplayerClient | null>(null);
   const remotePlayerRef = useRef<CharacterAIContext | null>(null);
@@ -99,6 +105,7 @@ export const ArenaGame: React.FC = () => {
   const keysRef = useRef<{ [key: string]: boolean }>({});
   const mousePosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const isMouseDownRef = useRef<boolean>(false);
+  const moveTargetRef = useRef<{ x: number; y: number } | null>(null);
 
   const itemSpawnTimerRef = useRef<number>(0);
 
@@ -107,6 +114,47 @@ export const ArenaGame: React.FC = () => {
     const muted = soundEngine.toggleMute();
     setIsMuted(muted);
   }, []);
+
+  // Listen to Active Online Rooms on Server
+  useEffect(() => {
+    const unsubscribe = MultiplayerClient.listenToActiveRooms((rooms) => {
+      setActiveOnlineRooms(rooms);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // 30-second Hero Draft Countdown Effect
+  useEffect(() => {
+    const isOnlineDrafting = gameMode === 'MULTIPLAYER_1V1' && roomState?.status === 'SELECTING';
+    const isBotDrafting = gameMode === 'PRACTICE_5V5' && isDrafting5v5;
+
+    if (!isOnlineDrafting && !isBotDrafting) {
+      setDraftTimer(30);
+      setIsLockedIn(false);
+      return;
+    }
+
+    const timer = setInterval(() => {
+      setDraftTimer((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          if (gameMode === 'PRACTICE_5V5') {
+            setIsDrafting5v5(false);
+            startMatch();
+          } else if (gameMode === 'MULTIPLAYER_1V1' && roomState) {
+            const isHost = roomState.players.find((p) => p.id === mpClientRef.current?.playerId)?.isHost;
+            if (isHost) {
+              mpClientRef.current?.setRoomStatus('PLAYING');
+            }
+          }
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [gameMode, roomState?.status, isDrafting5v5, roomState]);
 
   // --- WebSocket Connection & Multiplayer Handler ---
   useEffect(() => {
@@ -233,14 +281,31 @@ export const ArenaGame: React.FC = () => {
     }
   };
 
-  const handleJoinRoom = () => {
-    if (!roomCodeInput.trim()) {
+  const handleJoinRoom = (code?: string) => {
+    const targetCode = code || roomCodeInput;
+    if (!targetCode.trim()) {
       setErrorMessage('Please enter a 4-character room code!');
       return;
     }
+    setRoomCodeInput(targetCode.toUpperCase());
     if (mpClientRef.current) {
-      mpClientRef.current.joinRoom(roomCodeInput, playerName || 'Player 2', selectedCharId);
+      mpClientRef.current.joinRoom(targetCode.toUpperCase(), playerName || 'Player 2', selectedCharId);
     }
+  };
+
+  const handleLeaveRoom = () => {
+    if (mpClientRef.current) {
+      const isHost = roomState?.players.find((p) => p.id === mpClientRef.current?.playerId)?.isHost;
+      if (isHost) {
+        mpClientRef.current.deleteRoom();
+      } else {
+        mpClientRef.current.leaveRoom();
+      }
+    }
+    setRoomState(null);
+    setIsReady(false);
+    setIsLockedIn(false);
+    soundEngine.playCapturePing();
   };
 
   const handleSelectChar = (id: number) => {
@@ -255,6 +320,24 @@ export const ArenaGame: React.FC = () => {
     setIsReady(nextReady);
     if (mpClientRef.current) {
       mpClientRef.current.setReady(nextReady);
+    }
+  };
+
+  const handleStartDraft5v5 = () => {
+    setIsDrafting5v5(true);
+    setDraftTimer(30);
+    setIsLockedIn(false);
+    soundEngine.playCapturePing();
+  };
+
+  const handleLockInHero = () => {
+    setIsLockedIn(true);
+    soundEngine.playCapturePing();
+    if (gameMode === 'MULTIPLAYER_1V1' && mpClientRef.current) {
+      mpClientRef.current.setLockedIn(true);
+    } else if (gameMode === 'PRACTICE_5V5') {
+      setIsDrafting5v5(false);
+      startMatch();
     }
   };
 
@@ -992,29 +1075,85 @@ export const ArenaGame: React.FC = () => {
           let dirX = 0;
           let dirY = 0;
           const k = keysRef.current;
-          if (k['KeyW'] || k['ArrowUp']) dirY -= 1;
-          if (k['KeyS'] || k['ArrowDown']) dirY += 1;
-          if (k['KeyA'] || k['ArrowLeft']) dirX -= 1;
-          if (k['KeyD'] || k['ArrowRight']) dirX += 1;
 
-          if (dirX !== 0 && dirY !== 0) {
-            dirX *= 0.7071;
-            dirY *= 0.7071;
-          }
+          if (k['ArrowUp']) dirY -= 1;
+          if (k['ArrowDown']) dirY += 1;
+          if (k['ArrowLeft']) dirX -= 1;
+          if (k['ArrowRight']) dirX += 1;
 
-          entity.vx = dirX;
-          entity.vy = dirY;
+          // WASD movement support
+          if (k['KeyS']) dirY += 1;
+          if (k['KeyA']) dirX -= 1;
+          if (k['KeyD']) dirX += 1;
+
           if (dirX !== 0 || dirY !== 0) {
+            moveTargetRef.current = null; // Keyboard overrides mouse click movement
+            if (dirX !== 0 && dirY !== 0) {
+              dirX *= 0.7071;
+              dirY *= 0.7071;
+            }
+            entity.vx = dirX;
+            entity.vy = dirY;
             entity.targetAngle = Math.atan2(dirY, dirX);
+          } else if (moveTargetRef.current) {
+            // Right-Click Mouse Destination Walk
+            const dx = moveTargetRef.current.x - entity.x;
+            const dy = moveTargetRef.current.y - entity.y;
+            const dist = Math.hypot(dx, dy);
+            if (dist > 10) {
+              entity.vx = dx / dist;
+              entity.vy = dy / dist;
+              entity.targetAngle = Math.atan2(dy, dx);
+            } else {
+              entity.vx = 0;
+              entity.vy = 0;
+              moveTargetRef.current = null;
+            }
+          } else {
+            entity.vx = 0;
+            entity.vy = 0;
           }
 
-          // Attack / Skill Keys
-          if (k['KeyJ'] && entity.atkCooldown <= 0) {
+          // Skills Q, W, E, R
+          if (k['KeyQ']) executeCharacterAttack(entity, entity.angle, 0);
+          if (k['KeyW']) executeCharacterAttack(entity, entity.angle, 1);
+          if (k['KeyE']) executeCharacterAttack(entity, entity.angle, 2);
+          if (k['KeyR']) executeCharacterAttack(entity, entity.angle, 2);
+
+          // Manual Attack / Fallback Keys
+          if ((k['KeyJ'] || k['Space']) && entity.atkCooldown <= 0) {
             executeCharacterAttack(entity, entity.angle);
           }
           if (k['KeyK']) executeCharacterAttack(entity, entity.angle, 0);
           if (k['KeyL']) executeCharacterAttack(entity, entity.angle, 1);
           if (k['KeyU']) executeCharacterAttack(entity, entity.angle, 2);
+
+          // Melee Auto-Attack: automatically strike nearby enemies when in melee range
+          if (entity.atkCooldown <= 0 && !entity.isDead && entity.stunTimer <= 0) {
+            let closestEnemy: CharacterAIContext | null = null;
+            let minDistance = Infinity;
+
+            entities.forEach((e) => {
+              if (e.team !== entity.team && !e.isDead) {
+                const dist = Math.hypot(e.x - entity.x, e.y - entity.y);
+                const meleeRange = entity.data.atkRange + e.radius + 22;
+                if (dist <= meleeRange && dist < minDistance) {
+                  minDistance = dist;
+                  closestEnemy = e;
+                }
+              }
+            });
+
+            if (closestEnemy) {
+              const targetAngle = Math.atan2(
+                (closestEnemy as CharacterAIContext).y - entity.y,
+                (closestEnemy as CharacterAIContext).x - entity.x
+              );
+              entity.targetAngle = targetAngle;
+              entity.angle = targetAngle;
+              executeCharacterAttack(entity, targetAngle);
+            }
+          }
 
           // Broadcast local player state to multiplayer opponent
           if (gameMode === 'MULTIPLAYER_1V1') {
@@ -1924,6 +2063,22 @@ export const ArenaGame: React.FC = () => {
         }
       });
 
+      // Draw Right-Click Mouse Destination Ring Marker
+      if (moveTargetRef.current) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(moveTargetRef.current.x, moveTargetRef.current.y, 12, 0, Math.PI * 2);
+        ctx.strokeStyle = '#4ade80';
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(moveTargetRef.current.x, moveTargetRef.current.y, 4, 0, Math.PI * 2);
+        ctx.fillStyle = '#4ade80';
+        ctx.fill();
+        ctx.restore();
+      }
+
       // Render Particle System
       particles.addAmbientEmbers(MAP_WIDTH, MAP_HEIGHT);
       particles.updateAndDraw(ctx, dt);
@@ -1974,10 +2129,39 @@ export const ArenaGame: React.FC = () => {
     const screenX = (e.clientX - rect.left) * scaleX;
     const screenY = (e.clientY - rect.top) * scaleY;
     const cam = cameraRef.current;
+    const worldX = screenX + cam.x;
+    const worldY = screenY + cam.y;
+
     mousePosRef.current = {
-      x: screenX + cam.x,
-      y: screenY + cam.y,
+      x: worldX,
+      y: worldY,
     };
+
+    if (e.buttons === 2 || e.buttons === 1) {
+      moveTargetRef.current = { x: worldX, y: worldY };
+    }
+  };
+
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (gameState !== 'PLAYING') return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    const scaleX = CANVAS_WIDTH / rect.width;
+    const scaleY = CANVAS_HEIGHT / rect.height;
+    const screenX = (e.clientX - rect.left) * scaleX;
+    const screenY = (e.clientY - rect.top) * scaleY;
+    const cam = cameraRef.current;
+    const worldX = screenX + cam.x;
+    const worldY = screenY + cam.y;
+
+    if (e.button === 2 || e.button === 0) {
+      moveTargetRef.current = { x: worldX, y: worldY };
+      particleSysRef.current.addShockwave(worldX, worldY, '#4ade80', 22);
+    }
+  };
+
+  const handleContextMenu = (e: React.MouseEvent<HTMLDivElement>) => {
+    e.preventDefault();
   };
 
   return (
@@ -1985,6 +2169,8 @@ export const ArenaGame: React.FC = () => {
       {/* Game Canvas Container */}
       <div
         onMouseMove={handleMouseMove}
+        onMouseDown={handleMouseDown}
+        onContextMenu={handleContextMenu}
         className="relative w-full max-w-[1400px] aspect-[14/8] shadow-2xl rounded-2xl overflow-hidden border-2 border-slate-800 bg-slate-900 cursor-crosshair"
       >
         <canvas
@@ -2017,20 +2203,31 @@ export const ArenaGame: React.FC = () => {
           <CharacterSelectModal
             selectedCharId={selectedCharId}
             onSelectChar={handleSelectChar}
-            onStartGame={() => startMatch()}
+            onStartMatch={() => startMatch()}
             gameMode={gameMode}
-            onSelectGameMode={setGameMode}
+            onSelectGameMode={(mode) => {
+              setGameMode(mode);
+              setIsDrafting5v5(false);
+            }}
             playerName={playerName}
             onPlayerNameChange={setPlayerName}
             roomCodeInput={roomCodeInput}
             onRoomCodeInputChange={setRoomCodeInput}
             roomState={roomState}
-            isRoomHost={roomState ? roomState.players.find((p) => p.id === mpClientRef.current?.playerId)?.isHost : false}
+            isRoomHost={roomState ? roomState.players.find((p) => p.id === mpClientRef.current?.playerId)?.isHost || false : false}
             isReady={isReady}
             onCreateRoom={handleCreateRoom}
             onJoinRoom={handleJoinRoom}
+            onLeaveRoom={handleLeaveRoom}
             onToggleReady={handleToggleReady}
             errorMessage={errorMessage}
+            activeOnlineRooms={activeOnlineRooms}
+            draftTimer={draftTimer}
+            isDrafting={(gameMode === 'MULTIPLAYER_1V1' && roomState?.status === 'SELECTING') || (gameMode === 'PRACTICE_5V5' && isDrafting5v5)}
+            onStartDraft5v5={handleStartDraft5v5}
+            onLockInHero={handleLockInHero}
+            isLockedIn={isLockedIn}
+            myPlayerId={mpClientRef.current?.playerId || null}
           />
         )}
 

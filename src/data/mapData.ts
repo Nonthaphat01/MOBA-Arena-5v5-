@@ -30,7 +30,7 @@ export const CHARACTERS: CharacterData[] = [
     description: 'Relentless front-line blade warrior with dash charges and heavy cross slashes.',
     skills: [
       {
-        key: 'K',
+        key: 'Q',
         name: 'Heavy Slash',
         mp: 25,
         cd: 6,
@@ -39,7 +39,7 @@ export const CHARACTERS: CharacterData[] = [
         type: 'aoe',
       },
       {
-        key: 'L',
+        key: 'W',
         name: 'Dash Thrust',
         mp: 30,
         cd: 8,
@@ -48,7 +48,7 @@ export const CHARACTERS: CharacterData[] = [
         type: 'dash',
       },
       {
-        key: 'U',
+        key: 'E',
         name: 'Cross Slash',
         mp: 60,
         cd: 32,
@@ -78,7 +78,7 @@ export const CHARACTERS: CharacterData[] = [
     description: 'Heavy armor defender that bashes enemies into walls and shields allies.',
     skills: [
       {
-        key: 'K',
+        key: 'Q',
         name: 'Shield Bash',
         mp: 20,
         cd: 7,
@@ -87,7 +87,7 @@ export const CHARACTERS: CharacterData[] = [
         type: 'attack',
       },
       {
-        key: 'L',
+        key: 'W',
         name: 'Fortress Barrier',
         mp: 30,
         cd: 12,
@@ -96,7 +96,7 @@ export const CHARACTERS: CharacterData[] = [
         type: 'buff',
       },
       {
-        key: 'U',
+        key: 'E',
         name: 'Guardian Wall',
         mp: 50,
         cd: 40,
@@ -126,7 +126,7 @@ export const CHARACTERS: CharacterData[] = [
     description: 'Lethal shadow stalker that ambushes from bushes with lightning flurry attacks.',
     skills: [
       {
-        key: 'K',
+        key: 'Q',
         name: 'Flurry Dance',
         mp: 25,
         cd: 5,
@@ -135,7 +135,7 @@ export const CHARACTERS: CharacterData[] = [
         type: 'attack',
       },
       {
-        key: 'L',
+        key: 'W',
         name: 'Shadow Step',
         mp: 30,
         cd: 9,
@@ -144,7 +144,7 @@ export const CHARACTERS: CharacterData[] = [
         type: 'dash',
       },
       {
-        key: 'U',
+        key: 'E',
         name: 'Berserk Fury',
         mp: 40,
         cd: 35,
@@ -174,7 +174,7 @@ export const CHARACTERS: CharacterData[] = [
     description: 'Long-range polearm specialist that keeps enemies at bay with piercing thrusts.',
     skills: [
       {
-        key: 'K',
+        key: 'Q',
         name: 'Piercing Spear',
         mp: 25,
         cd: 5,
@@ -183,7 +183,7 @@ export const CHARACTERS: CharacterData[] = [
         type: 'projectile',
       },
       {
-        key: 'L',
+        key: 'W',
         name: 'Whirlwind Spear',
         mp: 35,
         cd: 8,
@@ -192,7 +192,7 @@ export const CHARACTERS: CharacterData[] = [
         type: 'aoe',
       },
       {
-        key: 'U',
+        key: 'E',
         name: 'Dragon Charge',
         mp: 55,
         cd: 36,
@@ -222,7 +222,7 @@ export const CHARACTERS: CharacterData[] = [
     description: 'Arcane caster capable of healing allies and blasting enemies with divine bolts.',
     skills: [
       {
-        key: 'K',
+        key: 'Q',
         name: 'Runic Strike',
         mp: 30,
         cd: 4,
@@ -231,7 +231,7 @@ export const CHARACTERS: CharacterData[] = [
         type: 'projectile',
       },
       {
-        key: 'L',
+        key: 'W',
         name: 'Sacred Aura',
         mp: 45,
         cd: 12,
@@ -240,7 +240,7 @@ export const CHARACTERS: CharacterData[] = [
         type: 'heal',
       },
       {
-        key: 'U',
+        key: 'E',
         name: 'Judgment Bolt',
         mp: 75,
         cd: 30,

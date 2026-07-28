@@ -170,15 +170,15 @@ export const HUD: React.FC<HUDProps> = ({
           {/* Basic Attack Key */}
           <div className="flex flex-col items-center">
             <div className="relative w-14 h-14 bg-slate-800 border-2 border-slate-600 rounded-xl flex flex-col items-center justify-center shadow-inner">
-              <span className="absolute top-1 left-1.5 text-[10px] font-bold text-slate-400">J</span>
-              <span className="text-xs font-extrabold text-slate-200 mt-2">ATTACK</span>
+              <span className="absolute top-1 left-1.5 text-[9px] font-bold text-amber-400">AUTO</span>
+              <span className="text-[10px] font-extrabold text-slate-200 mt-2">ATTACK</span>
               {player.atkCooldown > 0 && (
                 <div className="absolute inset-0 bg-slate-950/80 rounded-lg flex items-center justify-center font-bold text-amber-400 text-sm">
                   {player.atkCooldown.toFixed(1)}s
                 </div>
               )}
             </div>
-            <span className="text-[10px] font-semibold text-slate-400 mt-1">Basic</span>
+            <span className="text-[10px] font-semibold text-slate-400 mt-1">Melee Auto</span>
           </div>
 
           {/* Skills K, L, U */}
