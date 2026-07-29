@@ -27,11 +27,16 @@ export const MiniMap: React.FC<MiniMapProps> = ({
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const modalCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [mapSize, setMapSize] = useState<'large' | 'xlarge'>('large');
+  const [mapSize, setMapSize] = useState<'compact' | 'medium' | 'large'>('compact');
   const [isExpanded, setIsExpanded] = useState(false);
 
   // Canvas size presets (Width x Height, matching 1400:800 map aspect ratio 1.75)
-  const hudMapDimensions = mapSize === 'large' ? { w: 490, h: 280 } : { w: 680, h: 388 };
+  const hudMapDimensions =
+    mapSize === 'compact'
+      ? { w: 175, h: 100 }
+      : mapSize === 'medium'
+      ? { w: 260, h: 148 }
+      : { w: 360, h: 205 };
 
   // Toggle map with 'M' key
   useEffect(() => {
@@ -240,45 +245,39 @@ export const MiniMap: React.FC<MiniMapProps> = ({
         />
 
         {/* Top Control Header */}
-        <div className="absolute top-2 left-2 right-2 flex items-center justify-between pointer-events-auto">
-          <div className="text-[11px] font-black text-slate-100 tracking-wider bg-slate-950/90 px-2.5 py-1 rounded-lg border border-slate-700/80 flex items-center gap-2 shadow-lg">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span>TACTICAL MAP</span>
-            <span className="text-[9px] text-sky-400 bg-sky-950/80 px-1.5 py-0.5 rounded font-mono font-bold">[M]</span>
+        <div className="absolute top-1 left-1 right-1 flex items-center justify-between pointer-events-auto opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="text-[9px] font-black text-slate-100 tracking-wider bg-slate-950/90 px-1.5 py-0.5 rounded border border-slate-700/80 flex items-center gap-1 shadow-lg">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span>MAP</span>
           </div>
 
-          <div className="flex items-center gap-1.5 bg-slate-950/90 p-1 rounded-lg border border-slate-700/80 shadow-lg">
-            {/* Size Switchers */}
+          <div className="flex items-center gap-1 bg-slate-950/90 p-0.5 rounded border border-slate-700/80 shadow-lg">
             <button
-              onClick={() => setMapSize('large')}
-              className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all cursor-pointer ${
-                mapSize === 'large'
+              onClick={() => setMapSize('compact')}
+              className={`px-1 py-0.5 rounded text-[8px] font-bold transition-all cursor-pointer ${
+                mapSize === 'compact'
                   ? 'bg-sky-600 text-white shadow'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                  : 'text-slate-400 hover:text-slate-200'
               }`}
-              title="Large Map (490px)"
             >
-              490px
+              S
             </button>
             <button
-              onClick={() => setMapSize('xlarge')}
-              className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all cursor-pointer ${
-                mapSize === 'xlarge'
+              onClick={() => setMapSize('medium')}
+              className={`px-1 py-0.5 rounded text-[8px] font-bold transition-all cursor-pointer ${
+                mapSize === 'medium'
                   ? 'bg-sky-600 text-white shadow'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                  : 'text-slate-400 hover:text-slate-200'
               }`}
-              title="Extra Large Map (680px)"
             >
-              680px
+              M
             </button>
-
             <button
               onClick={() => setIsExpanded(true)}
-              className="bg-slate-800 hover:bg-sky-600 text-slate-200 hover:text-white px-2 py-0.5 rounded text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 border border-slate-700"
-              title="Expand Fullscreen Tactical Command Map (Key M)"
+              className="bg-slate-800 hover:bg-sky-600 text-slate-200 hover:text-white px-1 py-0.5 rounded text-[8px] font-bold transition-all cursor-pointer flex items-center gap-0.5"
+              title="Expand Fullscreen Map (Key M)"
             >
-              <Maximize2 className="w-3 h-3" />
-              <span>FULL</span>
+              <Maximize2 className="w-2.5 h-2.5" />
             </button>
           </div>
         </div>

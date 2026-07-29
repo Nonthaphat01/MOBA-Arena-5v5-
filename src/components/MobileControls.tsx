@@ -21,7 +21,7 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
   const touchIdRef = useRef<number | null>(null);
   const originRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
-  const JOYSTICK_RADIUS = 55; // max radius for knob offset
+  const JOYSTICK_RADIUS = 38; // compact max radius for knob offset
 
   // Handle Joystick Touch Start
   const handleJoystickTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
@@ -108,24 +108,21 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
   };
 
   return (
-    <div className="absolute inset-0 pointer-events-none select-none z-20 flex justify-between items-end p-4 sm:p-6 overflow-hidden">
-      {/* Left: Virtual Joystick */}
-      <div className="relative w-40 h-40 sm:w-48 sm:h-48 flex items-center justify-center pointer-events-auto">
+    <div className="absolute inset-0 pointer-events-none select-none z-20 flex justify-between items-end p-2 sm:p-4 overflow-hidden">
+      {/* Left: Compact Virtual Joystick */}
+      <div className="relative w-28 h-28 sm:w-32 sm:h-32 flex items-center justify-center pointer-events-auto">
         <div
           ref={joystickContainerRef}
           onTouchStart={handleJoystickTouchStart}
           onTouchMove={handleJoystickTouchMove}
           onTouchEnd={handleJoystickTouchEnd}
           onTouchCancel={handleJoystickTouchEnd}
-          className={`relative w-36 h-36 sm:w-44 sm:h-44 rounded-full border-2 transition-colors flex items-center justify-center touch-none ${
+          className={`relative w-24 h-24 sm:w-28 sm:h-28 rounded-full border border-sky-400/50 transition-colors flex items-center justify-center touch-none ${
             joystickActive
-              ? 'bg-sky-950/70 border-sky-400 shadow-[0_0_25px_rgba(56,189,248,0.4)]'
-              : 'bg-slate-900/50 border-slate-700/80'
+              ? 'bg-sky-950/80 border-sky-400 shadow-[0_0_15px_rgba(56,189,248,0.4)]'
+              : 'bg-slate-900/60 border-slate-700/80'
           }`}
         >
-          {/* Inner Directional Ring */}
-          <div className="absolute inset-2 rounded-full border border-dashed border-sky-500/30 pointer-events-none" />
-
           {/* Directional Guides */}
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-30">
             <div className="w-full h-[1px] bg-sky-400" />
@@ -134,24 +131,23 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
 
           {/* Joystick Thumb Knob */}
           <div
-            className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full border-2 flex items-center justify-center shadow-xl transition-transform ${
+            className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full border flex items-center justify-center shadow-lg transition-transform ${
               joystickActive
-                ? 'bg-gradient-to-tr from-sky-500 to-indigo-500 border-white shadow-[0_0_15px_#38bdf8] scale-110'
+                ? 'bg-gradient-to-tr from-sky-500 to-indigo-500 border-white shadow-[0_0_10px_#38bdf8] scale-105'
                 : 'bg-slate-800 border-slate-600'
             }`}
             style={{
               transform: `translate(${knobPos.x}px, ${knobPos.y}px)`,
             }}
           >
-            <div className="w-5 h-5 rounded-full bg-white/80 shadow-inner" />
+            <div className="w-3 h-3 rounded-full bg-white/90 shadow-inner" />
           </div>
         </div>
       </div>
 
-      {/* Right: Action & Skill Touch Buttons Pad */}
-      <div className="relative pointer-events-auto flex items-end justify-end gap-3 touch-none">
-        {/* Skills Fan Layout */}
-        <div className="relative w-48 h-48 sm:w-56 sm:h-56">
+      {/* Right: Compact Skill & Attack Pad */}
+      <div className="relative pointer-events-auto flex items-end justify-end touch-none">
+        <div className="relative w-36 h-36 sm:w-40 sm:h-40">
           {/* Main Auto-Attack Button (Bottom Right) */}
           <button
             type="button"
@@ -160,10 +156,10 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
               onAttack();
             }}
             onClick={onAttack}
-            className="absolute bottom-1 right-1 w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-gradient-to-tr from-amber-600 via-amber-500 to-yellow-400 border-2 border-amber-200 shadow-[0_0_20px_rgba(245,158,11,0.5)] active:scale-95 transition-transform flex flex-col items-center justify-center text-slate-950 font-black cursor-pointer"
+            className="absolute bottom-1 right-1 w-13 h-13 sm:w-14 sm:h-14 rounded-full bg-gradient-to-tr from-amber-600 to-yellow-400 border border-amber-200 shadow-[0_0_12px_rgba(245,158,11,0.5)] active:scale-90 transition-transform flex flex-col items-center justify-center text-slate-950 font-black cursor-pointer"
           >
-            <Swords className="w-8 h-8 sm:w-10 sm:h-10 text-slate-950 drop-shadow-md" />
-            <span className="text-[10px] sm:text-xs tracking-wider uppercase font-black">ATTACK</span>
+            <Swords className="w-5 h-5 text-slate-950" />
+            <span className="text-[8px] uppercase font-black">ATK</span>
           </button>
 
           {/* Skill Buttons in Arch Around Attack Button */}
@@ -171,14 +167,11 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
             const cd = player.skillCDs[idx] || 0;
             const hasMp = player.mp >= skill.mp;
 
-            // Positioning skill buttons around attack button in an arc
-            // Skill 0 (Top left of arc)
-            // Skill 1 (Top middle of arc)
-            // Skill 2 (Left of arc)
+            // Compact Arc distances around attack button
             const positions = [
-              { bottom: '100px', right: '110px' }, // Skill 1
-              { bottom: '135px', right: '35px' },  // Skill 2
-              { bottom: '35px', right: '135px' },  // Skill 3 (Ult)
+              { bottom: '52px', right: '58px' }, // Skill 1
+              { bottom: '62px', right: '8px' },  // Skill 2
+              { bottom: '8px', right: '62px' },  // Skill 3 (Ult)
             ];
 
             const pos = positions[idx] || { bottom: '0px', right: '0px' };
@@ -197,33 +190,29 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
                   if (cd <= 0 && hasMp) onSkill(idx);
                 }}
                 style={{ bottom: pos.bottom, right: pos.right }}
-                className={`absolute w-14 h-14 sm:w-16 sm:h-16 rounded-full border-2 flex flex-col items-center justify-center transition-all shadow-lg cursor-pointer active:scale-90 ${
+                className={`absolute w-9 h-9 sm:w-10 sm:h-10 rounded-full border flex flex-col items-center justify-center transition-all shadow-md cursor-pointer active:scale-90 ${
                   isUlt
-                    ? 'bg-gradient-to-br from-purple-700 to-indigo-600 border-purple-300 shadow-[0_0_15px_rgba(168,85,247,0.5)]'
+                    ? 'bg-gradient-to-br from-purple-700 to-indigo-600 border-purple-300 shadow-[0_0_10px_rgba(168,85,247,0.5)]'
                     : 'bg-slate-900/90 border-slate-600 text-slate-100'
                 } ${!hasMp || cd > 0 ? 'opacity-50 grayscale' : 'hover:border-amber-400'}`}
               >
                 {/* Skill Icon */}
                 {isUlt ? (
-                  <Sparkles className="w-5 h-5 text-amber-300" />
+                  <Sparkles className="w-3.5 h-3.5 text-amber-300" />
                 ) : idx === 1 ? (
-                  <Shield className="w-5 h-5 text-emerald-400" />
+                  <Shield className="w-3.5 h-3.5 text-emerald-400" />
                 ) : (
-                  <Zap className="w-5 h-5 text-sky-400" />
+                  <Zap className="w-3.5 h-3.5 text-sky-400" />
                 )}
 
-                <span className="text-[9px] font-extrabold truncate max-w-[48px] px-1 text-slate-200">
-                  {skill.name}
-                </span>
-
-                <span className="text-[8px] font-black text-sky-300">
-                  {skill.mp}MP
+                <span className="text-[7px] font-black text-sky-300 leading-none">
+                  {skill.mp}M
                 </span>
 
                 {/* Cooldown Overlay */}
                 {cd > 0 && (
-                  <div className="absolute inset-0 bg-slate-950/85 rounded-full flex items-center justify-center font-black text-amber-400 text-sm">
-                    {Math.ceil(cd)}s
+                  <div className="absolute inset-0 bg-slate-950/85 rounded-full flex items-center justify-center font-black text-amber-400 text-xs">
+                    {Math.ceil(cd)}
                   </div>
                 )}
               </button>

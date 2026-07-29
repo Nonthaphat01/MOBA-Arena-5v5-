@@ -62,7 +62,7 @@ export const HUD: React.FC<HUDProps> = ({
   };
 
   return (
-    <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-2 sm:p-4 select-none z-30">
+    <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-2 sm:p-3 select-none z-30 overflow-hidden">
       {/* Mobile Virtual Touch Controls Overlay */}
       {isMobileControlsVisible && !player.isDead && (
         <MobileControls
@@ -95,42 +95,108 @@ export const HUD: React.FC<HUDProps> = ({
         </div>
       )}
 
-      {/* Top Bar: Scores & Countdown */}
-      <div className="flex items-center justify-between w-full max-w-4xl mx-auto bg-slate-900/85 backdrop-blur-md px-3 sm:px-6 py-1.5 sm:py-2.5 rounded-xl border border-slate-700/80 shadow-2xl">
+      {/* Top-Left: MiniMap Tactical Radar */}
+      <div className="absolute top-2 left-2 z-30 pointer-events-auto flex items-start gap-2">
+        <MiniMap
+          player={player}
+          entities={entities}
+          flags={flags}
+          items={items}
+          walls={walls}
+          bushes={bushes}
+          mapWidth={mapWidth}
+          mapHeight={mapHeight}
+        />
+      </div>
+
+      {/* Top-Center Bar: Scores & Countdown */}
+      <div className="flex items-center justify-between w-full max-w-xl sm:max-w-3xl mx-auto bg-slate-900/85 backdrop-blur-md px-3 sm:px-5 py-1 sm:py-1.5 rounded-xl border border-slate-700/80 shadow-2xl">
         {/* Blue Team Score */}
-        <div className="flex items-center gap-1.5 sm:gap-3">
-          <div className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 rounded-full bg-sky-400 shadow-[0_0_10px_#38bdf8]" />
-          <span className="font-black text-sky-400 text-xs sm:text-lg tracking-wider">BLUE</span>
-          <span className="font-extrabold text-base sm:text-2xl text-slate-100">{Math.floor(stats.blueScore)}</span>
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-sky-400 shadow-[0_0_8px_#38bdf8]" />
+          <span className="font-black text-sky-400 text-xs sm:text-base tracking-wider">BLUE</span>
+          <span className="font-extrabold text-sm sm:text-xl text-slate-100">{Math.floor(stats.blueScore)}</span>
         </div>
 
         {/* Timer */}
         <div className="text-center">
-          <div className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-400 tracking-widest">MATCH TIMER</div>
-          <div className="text-lg sm:text-2xl font-black text-amber-400 tracking-wider font-mono">
+          <div className="text-[8px] sm:text-[9px] uppercase font-bold text-slate-400 tracking-widest">MATCH TIMER</div>
+          <div className="text-base sm:text-xl font-black text-amber-400 tracking-wider font-mono">
             {formatTime(stats.matchTimer)}
           </div>
         </div>
 
         {/* Red Team Score */}
-        <div className="flex items-center gap-1.5 sm:gap-3">
-          <span className="font-extrabold text-base sm:text-2xl text-slate-100">{Math.floor(stats.redScore)}</span>
-          <span className="font-black text-red-400 text-xs sm:text-lg tracking-wider">RED</span>
-          <div className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 rounded-full bg-red-400 shadow-[0_0_10px_#f87171]" />
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          <span className="font-extrabold text-sm sm:text-xl text-slate-100">{Math.floor(stats.redScore)}</span>
+          <span className="font-black text-red-400 text-xs sm:text-base tracking-wider">RED</span>
+          <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-red-400 shadow-[0_0_8px_#f87171]" />
         </div>
       </div>
 
-      {/* Kill Feed / Announcer Overlay (Top Right) */}
-      <div className="absolute top-16 right-4 flex flex-col items-end gap-1.5 max-w-xs z-10 pointer-events-none">
+      {/* Top-Right: Quick Controls Toolbar */}
+      <div className="absolute top-2 right-2 z-30 pointer-events-auto flex items-center gap-1 bg-slate-900/90 border border-slate-700/80 p-1 rounded-xl shadow-lg backdrop-blur-md">
+        {/* Mobile Touch Controls Toggle */}
+        <button
+          onClick={onToggleMobileControls}
+          title="Toggle Mobile Virtual Controls"
+          className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] sm:text-[11px] font-black transition-all cursor-pointer ${
+            isMobileControlsVisible
+              ? 'bg-sky-600 text-white shadow-md shadow-sky-500/30'
+              : 'bg-slate-800 text-slate-300 hover:text-white'
+          }`}
+        >
+          <Smartphone className="w-3.5 h-3.5" />
+          <span>{isMobileControlsVisible ? 'TOUCH ON' : 'TOUCH OFF'}</span>
+        </button>
+
+        {/* Fullscreen Toggle */}
+        <button
+          onClick={onToggleFullscreen}
+          title="Toggle Fullscreen Mode"
+          className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] sm:text-[11px] font-black transition-all cursor-pointer ${
+            isFullscreen
+              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/30'
+              : 'bg-slate-800 text-slate-300 hover:text-white'
+          }`}
+        >
+          {isFullscreen ? (
+            <>
+              <Minimize2 className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">EXIT</span>
+            </>
+          ) : (
+            <>
+              <Maximize2 className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">FULL</span>
+            </>
+          )}
+        </button>
+
+        {/* Mute Button */}
+        <button
+          onClick={onToggleMute}
+          className="flex items-center gap-1 px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-[10px] sm:text-[11px] font-extrabold transition-all cursor-pointer"
+        >
+          {isMuted ? (
+            <VolumeX className="w-3.5 h-3.5 text-red-400" />
+          ) : (
+            <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
+          )}
+        </button>
+      </div>
+
+      {/* Kill Feed Overlay (Top Right Below Toolbar) */}
+      <div className="absolute top-12 right-2 flex flex-col items-end gap-1 max-w-[200px] sm:max-w-xs z-10 pointer-events-none">
         {killFeed.slice(-3).map((entry) => (
           <div
             key={entry.id}
-            className="bg-slate-900/90 border border-slate-800 text-xs px-3 py-1.5 rounded-lg shadow-lg backdrop-blur-md animate-fade-in flex items-center gap-1.5"
+            className="bg-slate-900/90 border border-slate-800 text-[10px] sm:text-xs px-2.5 py-1 rounded-lg shadow-lg backdrop-blur-md animate-fade-in flex items-center gap-1"
           >
             <span className={entry.killerTeam === 'BLUE' ? 'text-sky-400 font-bold' : 'text-red-400 font-bold'}>
               {entry.killerName}
             </span>
-            <span className="text-slate-400">eliminated</span>
+            <span className="text-slate-400">⚔️</span>
             <span className={entry.victimTeam === 'BLUE' ? 'text-sky-400 font-bold' : 'text-red-400 font-bold'}>
               {entry.victimName}
             </span>
@@ -138,34 +204,40 @@ export const HUD: React.FC<HUDProps> = ({
         ))}
       </div>
 
-      {/* Bottom Row: Player HUD, Skills, Audio & Radar */}
-      <div className="flex items-end justify-between w-full gap-4">
-        {/* Left: Player Health & Mana Status */}
-        <div className="bg-slate-900/90 border border-slate-700/80 p-4 rounded-2xl w-72 shadow-2xl backdrop-blur-md pointer-events-auto">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <span className="text-xl">{player.data.avatarIcon}</span>
+      {/* Bottom Area: Health/Mana Status & Desktop Skill Bar */}
+      <div className="flex items-end justify-between w-full gap-2">
+        {/* Player Health & Mana Status (Compact in Touch Mode, Full in Desktop Mode) */}
+        <div
+          className={`bg-slate-900/90 border border-slate-700/80 rounded-xl shadow-2xl backdrop-blur-md pointer-events-auto transition-all ${
+            isMobileControlsVisible
+              ? 'p-2 w-48 sm:w-56 mb-28 sm:mb-32' // Lift above virtual joystick in touch mode
+              : 'p-3 w-60 sm:w-68'
+          }`}
+        >
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center gap-1.5">
+              <span className="text-base sm:text-lg">{player.data.avatarIcon}</span>
               <div>
-                <h3 className="font-extrabold text-slate-100 text-sm leading-none">{player.data.name}</h3>
-                <span className="text-[10px] text-sky-400 font-semibold">{player.data.roleTitle}</span>
+                <h3 className="font-extrabold text-slate-100 text-xs sm:text-sm leading-none">{player.data.name}</h3>
+                <span className="text-[9px] text-sky-400 font-semibold">{player.data.roleTitle}</span>
               </div>
             </div>
             {player.speedBuffTimer > 0 && (
-              <span className="text-[10px] font-bold text-amber-400 bg-amber-950/60 px-2 py-0.5 rounded border border-amber-600 animate-pulse">
+              <span className="text-[9px] font-bold text-amber-400 bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-600 animate-pulse">
                 ⚡ SPEED
               </span>
             )}
           </div>
 
           {/* HP Bar */}
-          <div className="mb-2">
-            <div className="flex justify-between text-[11px] font-bold text-slate-300 mb-0.5">
-              <span>HEALTH</span>
+          <div className="mb-1">
+            <div className="flex justify-between text-[10px] font-bold text-slate-300 mb-0.5">
+              <span>HP</span>
               <span>
                 {Math.ceil(player.hp)} / {player.maxHp}
               </span>
             </div>
-            <div className="w-full h-3.5 bg-slate-800 rounded-full overflow-hidden border border-slate-700/60">
+            <div className="w-full h-2.5 sm:h-3 bg-slate-800 rounded-full overflow-hidden border border-slate-700/60">
               <div
                 className="h-full bg-gradient-to-r from-red-600 to-rose-400 transition-all duration-150 rounded-full"
                 style={{ width: `${hpPct}%` }}
@@ -175,13 +247,13 @@ export const HUD: React.FC<HUDProps> = ({
 
           {/* MP Bar */}
           <div>
-            <div className="flex justify-between text-[11px] font-bold text-slate-300 mb-0.5">
-              <span>MANA</span>
+            <div className="flex justify-between text-[10px] font-bold text-slate-300 mb-0.5">
+              <span>MP</span>
               <span>
                 {Math.ceil(player.mp)} / {player.maxMp}
               </span>
             </div>
-            <div className="w-full h-3 bg-slate-800 rounded-full overflow-hidden border border-slate-700/60">
+            <div className="w-full h-2 sm:h-2.5 bg-slate-800 rounded-full overflow-hidden border border-slate-700/60">
               <div
                 className="h-full bg-gradient-to-r from-blue-600 to-sky-400 transition-all duration-150 rounded-full"
                 style={{ width: `${mpPct}%` }}
@@ -190,125 +262,61 @@ export const HUD: React.FC<HUDProps> = ({
           </div>
         </div>
 
-        {/* Center: Skill Action Bar */}
-        <div className="flex items-center gap-3 bg-slate-900/90 border border-slate-700/80 p-3 rounded-2xl shadow-2xl backdrop-blur-md pointer-events-auto">
-          {/* Basic Attack Key */}
-          <div className="flex flex-col items-center">
-            <div className="relative w-14 h-14 bg-slate-800 border-2 border-slate-600 rounded-xl flex flex-col items-center justify-center shadow-inner">
-              <span className="absolute top-1 left-1.5 text-[9px] font-bold text-amber-400">AUTO</span>
-              <span className="text-[10px] font-extrabold text-slate-200 mt-2">ATTACK</span>
-              {player.atkCooldown > 0 && (
-                <div className="absolute inset-0 bg-slate-950/80 rounded-lg flex items-center justify-center font-bold text-amber-400 text-sm">
-                  {player.atkCooldown.toFixed(1)}s
-                </div>
-              )}
-            </div>
-            <span className="text-[10px] font-semibold text-slate-400 mt-1">Melee Auto</span>
-          </div>
-
-          {/* Skills K, L, U */}
-          {player.data.skills.map((skill, idx) => {
-            const cd = player.skillCDs[idx];
-            const hasMp = player.mp >= skill.mp;
-
-            return (
-              <div key={idx} className="flex flex-col items-center">
-                <div
-                  className={`relative w-14 h-14 rounded-xl border-2 flex flex-col items-center justify-center transition-all ${
-                    hasMp
-                      ? 'bg-slate-800 border-amber-500/70 shadow-lg shadow-amber-500/10'
-                      : 'bg-slate-900 border-slate-700 opacity-60'
-                  }`}
-                >
-                  <span className="absolute top-1 left-1.5 text-[10px] font-bold text-amber-400">
-                    {skill.key}
-                  </span>
-                  <span className="text-[10px] font-bold text-slate-100 text-center px-1 leading-tight mt-1">
-                    {skill.name}
-                  </span>
-                  <span className="absolute bottom-1 right-1.5 text-[9px] font-extrabold text-sky-400">
-                    {skill.mp}MP
-                  </span>
-
-                  {cd > 0 && (
-                    <div className="absolute inset-0 bg-slate-950/85 rounded-lg flex items-center justify-center font-black text-amber-400 text-base">
-                      {Math.ceil(cd)}
-                    </div>
-                  )}
-                </div>
-                <span className="text-[10px] font-semibold text-slate-400 mt-1">
-                  CD {skill.cd}s
-                </span>
+        {/* Desktop Skill Action Bar (ONLY shown when Mobile Touch Controls are OFF) */}
+        {!isMobileControlsVisible && (
+          <div className="flex items-center gap-2 sm:gap-3 bg-slate-900/90 border border-slate-700/80 p-2 sm:p-3 rounded-2xl shadow-2xl backdrop-blur-md pointer-events-auto mx-auto">
+            {/* Basic Attack Key */}
+            <div className="flex flex-col items-center">
+              <div className="relative w-12 h-12 sm:w-14 sm:h-14 bg-slate-800 border-2 border-slate-600 rounded-xl flex flex-col items-center justify-center shadow-inner">
+                <span className="absolute top-1 left-1.5 text-[8px] sm:text-[9px] font-bold text-amber-400">AUTO</span>
+                <span className="text-[9px] sm:text-[10px] font-extrabold text-slate-200 mt-2">ATTACK</span>
+                {player.atkCooldown > 0 && (
+                  <div className="absolute inset-0 bg-slate-950/80 rounded-lg flex items-center justify-center font-bold text-amber-400 text-xs sm:text-sm">
+                    {player.atkCooldown.toFixed(1)}s
+                  </div>
+                )}
               </div>
-            );
-          })}
-        </div>
+              <span className="text-[9px] font-semibold text-slate-400 mt-1">Melee Auto</span>
+            </div>
 
-        {/* Right: Controls Toolbar & MiniMap */}
-        <div className="flex flex-col items-end gap-2 pointer-events-auto">
-          <div className="flex items-center gap-1.5 bg-slate-900/90 border border-slate-700/80 p-1 rounded-xl shadow-lg backdrop-blur-md">
-            {/* Mobile Touch Controls Toggle */}
-            <button
-              onClick={onToggleMobileControls}
-              title="Toggle Mobile Virtual Controls (เปิด/ปิด ปุ่มควบคุมบนมือถือ)"
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-black transition-all cursor-pointer ${
-                isMobileControlsVisible
-                  ? 'bg-sky-600 text-white shadow-md shadow-sky-500/30'
-                  : 'bg-slate-800 text-slate-300 hover:text-white'
-              }`}
-            >
-              <Smartphone className="w-3.5 h-3.5" />
-              <span>{isMobileControlsVisible ? 'TOUCH ON' : 'TOUCH OFF'}</span>
-            </button>
+            {/* Skills */}
+            {player.data.skills.map((skill, idx) => {
+              const cd = player.skillCDs[idx];
+              const hasMp = player.mp >= skill.mp;
 
-            {/* Fullscreen Toggle */}
-            <button
-              onClick={onToggleFullscreen}
-              title="Toggle Fullscreen Mode (แสดงผลเต็มจอ)"
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-black transition-all cursor-pointer ${
-                isFullscreen
-                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/30'
-                  : 'bg-slate-800 text-slate-300 hover:text-white'
-              }`}
-            >
-              {isFullscreen ? (
-                <>
-                  <Minimize2 className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">EXIT FULL</span>
-                </>
-              ) : (
-                <>
-                  <Maximize2 className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">FULLSCREEN</span>
-                </>
-              )}
-            </button>
+              return (
+                <div key={idx} className="flex flex-col items-center">
+                  <div
+                    className={`relative w-12 h-12 sm:w-14 sm:h-14 rounded-xl border-2 flex flex-col items-center justify-center transition-all ${
+                      hasMp
+                        ? 'bg-slate-800 border-amber-500/70 shadow-lg shadow-amber-500/10'
+                        : 'bg-slate-900 border-slate-700 opacity-60'
+                    }`}
+                  >
+                    <span className="absolute top-1 left-1.5 text-[9px] sm:text-[10px] font-bold text-amber-400">
+                      {skill.key}
+                    </span>
+                    <span className="text-[9px] sm:text-[10px] font-bold text-slate-100 text-center px-1 leading-tight mt-1 truncate max-w-[48px]">
+                      {skill.name}
+                    </span>
+                    <span className="absolute bottom-1 right-1.5 text-[8px] sm:text-[9px] font-extrabold text-sky-400">
+                      {skill.mp}MP
+                    </span>
 
-            {/* Mute Button */}
-            <button
-              onClick={onToggleMute}
-              className="flex items-center gap-1 px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-[11px] font-extrabold transition-all cursor-pointer"
-            >
-              {isMuted ? (
-                <VolumeX className="w-3.5 h-3.5 text-red-400" />
-              ) : (
-                <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
-              )}
-            </button>
+                    {cd > 0 && (
+                      <div className="absolute inset-0 bg-slate-950/85 rounded-lg flex items-center justify-center font-black text-amber-400 text-sm sm:text-base">
+                        {Math.ceil(cd)}
+                      </div>
+                    )}
+                  </div>
+                  <span className="text-[9px] font-semibold text-slate-400 mt-1">
+                    CD {skill.cd}s
+                  </span>
+                </div>
+              );
+            })}
           </div>
-
-          {/* MiniMap Radar */}
-          <MiniMap
-            player={player}
-            entities={entities}
-            flags={flags}
-            items={items}
-            walls={walls}
-            bushes={bushes}
-            mapWidth={mapWidth}
-            mapHeight={mapHeight}
-          />
-        </div>
+        )}
       </div>
     </div>
   );
