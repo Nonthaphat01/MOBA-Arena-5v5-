@@ -1,8 +1,9 @@
 import React from 'react';
-import { Volume2, VolumeX } from 'lucide-react';
+import { Volume2, VolumeX, Smartphone, Gamepad2, Maximize2, Minimize2 } from 'lucide-react';
 import { CharacterAIContext } from '../engine/ai';
 import { FlagZoneData, GameStats, ItemData, KillFeedEntry, Wall } from '../types';
 import { MiniMap } from './MiniMap';
+import { MobileControls } from './MobileControls';
 
 interface HUDProps {
   player: CharacterAIContext;
@@ -17,6 +18,13 @@ interface HUDProps {
   onToggleMute: () => void;
   mapWidth: number;
   mapHeight: number;
+  isMobileControlsVisible: boolean;
+  onToggleMobileControls: () => void;
+  isFullscreen: boolean;
+  onToggleFullscreen: () => void;
+  onMoveMobile: (vector: { x: number; y: number } | null) => void;
+  onAttackMobile: () => void;
+  onSkillMobile: (skillIdx: number) => void;
 }
 
 export const HUD: React.FC<HUDProps> = ({
@@ -32,6 +40,13 @@ export const HUD: React.FC<HUDProps> = ({
   onToggleMute,
   mapWidth,
   mapHeight,
+  isMobileControlsVisible,
+  onToggleMobileControls,
+  isFullscreen,
+  onToggleFullscreen,
+  onMoveMobile,
+  onAttackMobile,
+  onSkillMobile,
 }) => {
   const hpPct = Math.max(0, Math.min(100, (player.hp / player.maxHp) * 100));
   const mpPct = Math.max(0, Math.min(100, (player.mp / player.maxMp) * 100));
@@ -47,10 +62,20 @@ export const HUD: React.FC<HUDProps> = ({
   };
 
   return (
-    <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-4 select-none">
+    <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-2 sm:p-4 select-none z-30">
+      {/* Mobile Virtual Touch Controls Overlay */}
+      {isMobileControlsVisible && !player.isDead && (
+        <MobileControls
+          player={player}
+          onMove={onMoveMobile}
+          onAttack={onAttackMobile}
+          onSkill={onSkillMobile}
+        />
+      )}
+
       {/* Player Respawn Banner Overlay */}
       {player.isDead && (
-        <div className="absolute inset-0 bg-slate-950/75 backdrop-blur-sm flex flex-col items-center justify-center z-30 pointer-events-none animate-fade-in">
+        <div className="absolute inset-0 bg-slate-950/75 backdrop-blur-sm flex flex-col items-center justify-center z-40 pointer-events-none animate-fade-in">
           <div className="bg-slate-900 border-2 border-red-500/80 p-8 rounded-3xl shadow-2xl flex flex-col items-center text-center max-w-sm">
             <div className="w-16 h-16 rounded-full bg-red-950/80 border-2 border-red-500 flex items-center justify-center text-3xl mb-3 shadow-[0_0_20px_#ef4444]">
               💀
@@ -71,27 +96,27 @@ export const HUD: React.FC<HUDProps> = ({
       )}
 
       {/* Top Bar: Scores & Countdown */}
-      <div className="flex items-center justify-between w-full max-w-4xl mx-auto bg-slate-900/85 backdrop-blur-md px-6 py-2.5 rounded-xl border border-slate-700/80 shadow-2xl">
+      <div className="flex items-center justify-between w-full max-w-4xl mx-auto bg-slate-900/85 backdrop-blur-md px-3 sm:px-6 py-1.5 sm:py-2.5 rounded-xl border border-slate-700/80 shadow-2xl">
         {/* Blue Team Score */}
-        <div className="flex items-center gap-3">
-          <div className="w-3.5 h-3.5 rounded-full bg-sky-400 shadow-[0_0_10px_#38bdf8]" />
-          <span className="font-black text-sky-400 text-lg tracking-wider">BLUE</span>
-          <span className="font-extrabold text-2xl text-slate-100">{Math.floor(stats.blueScore)}</span>
+        <div className="flex items-center gap-1.5 sm:gap-3">
+          <div className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 rounded-full bg-sky-400 shadow-[0_0_10px_#38bdf8]" />
+          <span className="font-black text-sky-400 text-xs sm:text-lg tracking-wider">BLUE</span>
+          <span className="font-extrabold text-base sm:text-2xl text-slate-100">{Math.floor(stats.blueScore)}</span>
         </div>
 
         {/* Timer */}
         <div className="text-center">
-          <div className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">MATCH TIMER</div>
-          <div className="text-2xl font-black text-amber-400 tracking-wider font-mono">
+          <div className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-400 tracking-widest">MATCH TIMER</div>
+          <div className="text-lg sm:text-2xl font-black text-amber-400 tracking-wider font-mono">
             {formatTime(stats.matchTimer)}
           </div>
         </div>
 
         {/* Red Team Score */}
-        <div className="flex items-center gap-3">
-          <span className="font-extrabold text-2xl text-slate-100">{Math.floor(stats.redScore)}</span>
-          <span className="font-black text-red-400 text-lg tracking-wider">RED</span>
-          <div className="w-3.5 h-3.5 rounded-full bg-red-400 shadow-[0_0_10px_#f87171]" />
+        <div className="flex items-center gap-1.5 sm:gap-3">
+          <span className="font-extrabold text-base sm:text-2xl text-slate-100">{Math.floor(stats.redScore)}</span>
+          <span className="font-black text-red-400 text-xs sm:text-lg tracking-wider">RED</span>
+          <div className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 rounded-full bg-red-400 shadow-[0_0_10px_#f87171]" />
         </div>
       </div>
 
@@ -219,25 +244,58 @@ export const HUD: React.FC<HUDProps> = ({
           })}
         </div>
 
-        {/* Right: Audio Toggle & MiniMap */}
-        <div className="flex flex-col items-end gap-3 pointer-events-auto">
-          {/* Mute Button */}
-          <button
-            onClick={onToggleMute}
-            className="flex items-center gap-2 bg-slate-900/90 border border-slate-700/80 hover:bg-slate-800 text-slate-200 px-3 py-1.5 rounded-lg shadow-lg text-xs font-bold transition-all cursor-pointer"
-          >
-            {isMuted ? (
-              <>
-                <VolumeX className="w-4 h-4 text-red-400" />
-                <span>SOUND MUTED</span>
-              </>
-            ) : (
-              <>
-                <Volume2 className="w-4 h-4 text-emerald-400" />
-                <span>AUDIO ON</span>
-              </>
-            )}
-          </button>
+        {/* Right: Controls Toolbar & MiniMap */}
+        <div className="flex flex-col items-end gap-2 pointer-events-auto">
+          <div className="flex items-center gap-1.5 bg-slate-900/90 border border-slate-700/80 p-1 rounded-xl shadow-lg backdrop-blur-md">
+            {/* Mobile Touch Controls Toggle */}
+            <button
+              onClick={onToggleMobileControls}
+              title="Toggle Mobile Virtual Controls (เปิด/ปิด ปุ่มควบคุมบนมือถือ)"
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-black transition-all cursor-pointer ${
+                isMobileControlsVisible
+                  ? 'bg-sky-600 text-white shadow-md shadow-sky-500/30'
+                  : 'bg-slate-800 text-slate-300 hover:text-white'
+              }`}
+            >
+              <Smartphone className="w-3.5 h-3.5" />
+              <span>{isMobileControlsVisible ? 'TOUCH ON' : 'TOUCH OFF'}</span>
+            </button>
+
+            {/* Fullscreen Toggle */}
+            <button
+              onClick={onToggleFullscreen}
+              title="Toggle Fullscreen Mode (แสดงผลเต็มจอ)"
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-black transition-all cursor-pointer ${
+                isFullscreen
+                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/30'
+                  : 'bg-slate-800 text-slate-300 hover:text-white'
+              }`}
+            >
+              {isFullscreen ? (
+                <>
+                  <Minimize2 className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">EXIT FULL</span>
+                </>
+              ) : (
+                <>
+                  <Maximize2 className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">FULLSCREEN</span>
+                </>
+              )}
+            </button>
+
+            {/* Mute Button */}
+            <button
+              onClick={onToggleMute}
+              className="flex items-center gap-1 px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-[11px] font-extrabold transition-all cursor-pointer"
+            >
+              {isMuted ? (
+                <VolumeX className="w-3.5 h-3.5 text-red-400" />
+              ) : (
+                <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
+              )}
+            </button>
+          </div>
 
           {/* MiniMap Radar */}
           <MiniMap

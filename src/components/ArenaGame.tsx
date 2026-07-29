@@ -111,6 +111,64 @@ export const ArenaGame: React.FC = () => {
 
   const itemSpawnTimerRef = useRef<number>(0);
 
+  // Mobile & Fullscreen Controls States & Refs
+  const [isMobileControlsVisible, setIsMobileControlsVisible] = useState<boolean>(true);
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const gameContainerRef = useRef<HTMLDivElement | null>(null);
+
+  const virtualJoystickVectorRef = useRef<{ x: number; y: number } | null>(null);
+  const executeAttackRef = useRef<((targetAngle: number, skillIdx?: number) => void) | null>(null);
+
+  const handleToggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      gameContainerRef.current?.requestFullscreen?.().catch(() => {});
+      setIsFullscreen(true);
+    } else {
+      document.exitFullscreen?.().catch(() => {});
+      setIsFullscreen(false);
+    }
+  };
+
+  const handleMobileAttack = () => {
+    const p = playerRef.current;
+    if (!p || p.isDead || p.stunTimer > 0) return;
+    let closestEnemy: CharacterAIContext | null = null;
+    let minDistance = Infinity;
+    entitiesRef.current.forEach((e) => {
+      if (e.team !== p.team && !e.isDead) {
+        const dist = Math.hypot(e.x - p.x, e.y - p.y);
+        if (dist < minDistance && dist < 350) {
+          minDistance = dist;
+          closestEnemy = e;
+        }
+      }
+    });
+    const angle = closestEnemy ? Math.atan2(closestEnemy.y - p.y, closestEnemy.x - p.x) : p.angle;
+    p.angle = angle;
+    p.targetAngle = angle;
+    executeAttackRef.current?.(angle);
+  };
+
+  const handleMobileSkill = (skillIdx: number) => {
+    const p = playerRef.current;
+    if (!p || p.isDead || p.stunTimer > 0) return;
+    let closestEnemy: CharacterAIContext | null = null;
+    let minDistance = Infinity;
+    entitiesRef.current.forEach((e) => {
+      if (e.team !== p.team && !e.isDead) {
+        const dist = Math.hypot(e.x - p.x, e.y - p.y);
+        if (dist < minDistance && dist < 450) {
+          minDistance = dist;
+          closestEnemy = e;
+        }
+      }
+    });
+    const angle = closestEnemy ? Math.atan2(closestEnemy.y - p.y, closestEnemy.x - p.x) : p.angle;
+    p.angle = angle;
+    p.targetAngle = angle;
+    executeAttackRef.current?.(angle, skillIdx);
+  };
+
   // Sound Mute Toggle
   const handleToggleMute = useCallback(() => {
     const muted = soundEngine.toggleMute();
@@ -831,6 +889,12 @@ export const ArenaGame: React.FC = () => {
         }
       };
 
+      executeAttackRef.current = (targetAngle, skillIdx) => {
+        if (playerRef.current && !playerRef.current.isDead) {
+          executeCharacterAttack(playerRef.current, targetAngle, skillIdx);
+        }
+      };
+
       // Helper function to handle local player death & multiplayer notification
       const triggerPlayerDeath = (p: CharacterAIContext, killerName: string) => {
         p.isDead = true;
@@ -1080,47 +1144,56 @@ export const ArenaGame: React.FC = () => {
 
         // Determine Controls (Player vs Smart AI)
         if (entity === player) {
-          // Keyboard Player Control
-          let dirX = 0;
-          let dirY = 0;
           const k = keysRef.current;
 
-          if (k['ArrowUp']) dirY -= 1;
-          if (k['ArrowDown']) dirY += 1;
-          if (k['ArrowLeft']) dirX -= 1;
-          if (k['ArrowRight']) dirX += 1;
+          // Mobile Virtual Joystick Input
+          if (virtualJoystickVectorRef.current) {
+            moveTargetRef.current = null;
+            entity.vx = virtualJoystickVectorRef.current.x;
+            entity.vy = virtualJoystickVectorRef.current.y;
+            entity.targetAngle = Math.atan2(virtualJoystickVectorRef.current.y, virtualJoystickVectorRef.current.x);
+          } else {
+            // Keyboard Player Control
+            let dirX = 0;
+            let dirY = 0;
 
-          // WASD movement support
-          if (k['KeyS']) dirY += 1;
-          if (k['KeyA']) dirX -= 1;
-          if (k['KeyD']) dirX += 1;
+            if (k['ArrowUp']) dirY -= 1;
+            if (k['ArrowDown']) dirY += 1;
+            if (k['ArrowLeft']) dirX -= 1;
+            if (k['ArrowRight']) dirX += 1;
 
-          if (dirX !== 0 || dirY !== 0) {
-            moveTargetRef.current = null; // Keyboard overrides mouse click movement
-            if (dirX !== 0 && dirY !== 0) {
-              dirX *= 0.7071;
-              dirY *= 0.7071;
-            }
-            entity.vx = dirX;
-            entity.vy = dirY;
-            entity.targetAngle = Math.atan2(dirY, dirX);
-          } else if (moveTargetRef.current) {
-            // Right-Click Mouse Destination Walk
-            const dx = moveTargetRef.current.x - entity.x;
-            const dy = moveTargetRef.current.y - entity.y;
-            const dist = Math.hypot(dx, dy);
-            if (dist > 10) {
-              entity.vx = dx / dist;
-              entity.vy = dy / dist;
-              entity.targetAngle = Math.atan2(dy, dx);
+            // WASD movement support
+            if (k['KeyS']) dirY += 1;
+            if (k['KeyA']) dirX -= 1;
+            if (k['KeyD']) dirX += 1;
+
+            if (dirX !== 0 || dirY !== 0) {
+              moveTargetRef.current = null; // Keyboard overrides mouse click movement
+              if (dirX !== 0 && dirY !== 0) {
+                dirX *= 0.7071;
+                dirY *= 0.7071;
+              }
+              entity.vx = dirX;
+              entity.vy = dirY;
+              entity.targetAngle = Math.atan2(dirY, dirX);
+            } else if (moveTargetRef.current) {
+              // Right-Click Mouse Destination Walk
+              const dx = moveTargetRef.current.x - entity.x;
+              const dy = moveTargetRef.current.y - entity.y;
+              const dist = Math.hypot(dx, dy);
+              if (dist > 10) {
+                entity.vx = dx / dist;
+                entity.vy = dy / dist;
+                entity.targetAngle = Math.atan2(dy, dx);
+              } else {
+                entity.vx = 0;
+                entity.vy = 0;
+                moveTargetRef.current = null;
+              }
             } else {
               entity.vx = 0;
               entity.vy = 0;
-              moveTargetRef.current = null;
             }
-          } else {
-            entity.vx = 0;
-            entity.vy = 0;
           }
 
           // Skills Q, W, E, R
@@ -2174,13 +2247,18 @@ export const ArenaGame: React.FC = () => {
   };
 
   return (
-    <div className="relative w-full h-full flex items-center justify-center bg-slate-950 overflow-hidden">
+    <div className="relative w-full h-full flex items-center justify-center bg-slate-950 overflow-hidden touch-none select-none">
       {/* Game Canvas Container */}
       <div
+        ref={gameContainerRef}
         onMouseMove={handleMouseMove}
         onMouseDown={handleMouseDown}
         onContextMenu={handleContextMenu}
-        className="relative w-full max-w-[1400px] aspect-[14/8] shadow-2xl rounded-2xl overflow-hidden border-2 border-slate-800 bg-slate-900 cursor-crosshair"
+        className={`relative w-full h-full transition-all flex items-center justify-center bg-slate-900 cursor-crosshair overflow-hidden ${
+          isFullscreen
+            ? 'fixed inset-0 z-50 w-screen h-screen max-w-none rounded-none border-0'
+            : 'max-w-[1400px] aspect-[14/8] shadow-2xl rounded-xl sm:rounded-2xl border-2 border-slate-800'
+        }`}
       >
         <canvas
           ref={canvasRef}
@@ -2204,6 +2282,15 @@ export const ArenaGame: React.FC = () => {
             onToggleMute={handleToggleMute}
             mapWidth={MAP_WIDTH}
             mapHeight={MAP_HEIGHT}
+            isMobileControlsVisible={isMobileControlsVisible}
+            onToggleMobileControls={() => setIsMobileControlsVisible((v) => !v)}
+            isFullscreen={isFullscreen}
+            onToggleFullscreen={handleToggleFullscreen}
+            onMoveMobile={(vector) => {
+              virtualJoystickVectorRef.current = vector;
+            }}
+            onAttackMobile={handleMobileAttack}
+            onSkillMobile={handleMobileSkill}
           />
         )}
 
